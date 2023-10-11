@@ -11,43 +11,68 @@ import torch.nn.functional
 DEVICE = torch.device("cpu")
 
 
-class TGenEnc(torch.nn.Module):
-    def __init__(self, input_vocab_size, num_hidden_dims, num_embedding_dims=None):
+class BasicLSTMEncoder(torch.nn.Module):
+    def __init__(self, num_unique_inputs, num_embedding_dims, num_hidden_dims, init="zeros"):
         """
-        TGen uses an LSTM encoder and embeddings with the same dimensionality as the hidden layer.
-        :param input_vocab_size:
+        :param num_unique_inputs:
+        :param num_embedding_dims:
         :param num_hidden_dims:
         """
-        super(TGenEnc, self).__init__()
-        self.input_vocab_size = input_vocab_size
-        self.hidden_size = num_hidden_dims
-        if num_embedding_dims is None:
-            self.embedding_size = self.hidden_size
-        else:
-            self.embedding_size = num_embedding_dims
+        super(BasicLSTMEncoder, self).__init__()
+        # Define properties
+        self.num_unique_inputs = num_unique_inputs
+        self.num_hidden_dims = num_hidden_dims
+        self.num_embedding_dims = num_embedding_dims
 
-        self.embedding = torch.nn.Embedding(self.input_vocab_size, self.embedding_size)
-        self.lstm = torch.nn.LSTM(self.embedding_size, self.hidden_size, batch_first=True)
+        # Initialise embedding and LSTM
+        self.embedding = torch.nn.Embedding(self.input_vocab_size, self.num_embedding_dims)
+        self.lstm = torch.nn.LSTM(self.num_embedding_dims, self.num_hidden_dims, batch_first=True)
+
+        if init == "zeros":
+            self._hidden_state_init_func = torch.zeros
+        else:
+            self._hidden_state_init_func = lambda *args: torch.randn(*args)/torch.sqrt(torch.Tensor([self.num_hidden_dims]))
 
     def forward(self, input_indices, h_c_state):
+        # This assumes batch first and batch size = 1
         embedded = self.embedding(input_indices).view(1, len(input_indices), -1)
         return self.lstm(embedded, h_c_state)
 
     def forward_one_step(self, input_index, h_c_state):
+        # This assumes batch first and batch size = 1
         embedded = self.embedding(input_index).view(1, 1, -1)
         output, h_c_state = self.lstm(embedded, h_c_state)
         return output, h_c_state
 
     def initial_h_c_state(self):
-        return (torch.zeros(1, 1, self.hidden_size, device=DEVICE),
-                torch.zeros(1, 1, self.hidden_size, device=DEVICE))
+        # This assumes batch first and batch size = 1
+        return (self._hidden_state_init_func(1, 1, self.num_hidden_dims, device=DEVICE),
+                self._hidden_state_init_func(1, 1, self.num_hidden_dims, device=DEVICE))
+
+
+class TGenEnc(BasicLSTMEncoder):
+    def __init__(self, input_vocab_size, num_hidden_dims):
+        """
+        TGen uses an LSTM encoder and embeddings with the same dimensionality as the hidden layer.
+        :param input_vocab_size:
+        :param num_hidden_dims:
+        """
+        super(TGenEnc, self).__init__(input_vocab_size, num_hidden_dims, num_hidden_dims, init="zeros")
+
+    @property
+    def input_vocab_size(self):
+        return self.num_unique_inputs
+
+    @property
+    def hidden_size(self):
+        return self.num_hidden_dims
 
 
 class BasicDecoder(torch.nn.Module):
     def __init__(self, hidden_layer_size, output_vocab_size, max_input_length, num_embedding_dims=None):
         super(BasicDecoder, self).__init__()
         self.hidden_size = hidden_layer_size
-        if num_embedding_dims == None:
+        if num_embedding_dims is None:
             self.embedding_size = self.hidden_size
         else:
             self.embedding_size = num_embedding_dims
