@@ -9,7 +9,7 @@ class GloVeEmbeddings(torch.nn.Embedding):
         super().__init__(num_embeddings, embedding_dim, **kwargs)
 
     @staticmethod
-    def from_word_embedding_txt(filepath, with_vocab=False):
+    def from_word_embedding_txt(filepath, with_vocab=False, **kwargs):
         tokens = []
         embeddings = []
         with open(filepath, 'r') as embedding_file:
@@ -22,7 +22,7 @@ class GloVeEmbeddings(torch.nn.Embedding):
         matrix = torch.rand(matrix_size)
         for token, embedding in zip(tokens, embeddings):
             matrix[vocab.get_int(token)] = torch.tensor([float(x) for x in embedding])
-        glove_embeddings = GloVeEmbeddings.from_pretrained(matrix)
+        glove_embeddings = GloVeEmbeddings.from_pretrained(matrix, **kwargs)
         if with_vocab:
             return vocab, glove_embeddings
         else:
