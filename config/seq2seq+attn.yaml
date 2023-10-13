@@ -6,15 +6,15 @@ model:
   max_input_length: 26
   encoder:
     embeddings:
-      mode: random # could also be one-hot, word2vec, glove, zero, etc
-      dimensions: 16
+      type: torch
+      embedding_dim: 16
       backprop: True
     cell: lstm
     num_hidden_dims: 64
   decoder:
     embeddings:
       mode: random
-      dimensions: 16
+      embedding_dim: 16
       backprop: True
     cell: lstm
     num_hidden_dims: 64
