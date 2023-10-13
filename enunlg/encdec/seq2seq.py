@@ -179,64 +179,6 @@ class Seq2SeqAttn(torch.nn.Module):
         self.encoder = BasicLSTMEncoder(self.input_vocab_size, self.config.encoder.embeddings.embedding_dim, self.config.encoder.num_hidden_dims)
         self.decoder = TGenDec(self.config.decoder.num_hidden_dims, self.output_vocab_size, self.config.max_input_length)
 
-        # Features copied from tgen.seq2seq.Seq2SeqBase
-        # self.beam_size = 1
-        # self.sample_top_k = 1
-        # self.length_norm_weight = 0.0
-        # self.context_bleu_weight = 0.0
-        # self.context_bleu_metric = 'bleu'
-        # self.slot_err_stats = None
-        # self.classif_filter = None
-        # self.lexicalizer = None
-        # self.init_slot_err_stats()
-
-        #
-        # Attributes based on tgen.seq2seq.Seq2SeqGen
-        # self.emb_size = 50
-        # self.batch_size = 10
-        # self.dropout_keep_prob = 1
-        # self.optimizer_type = 'adam'
-        #
-        # self.passes = 5
-        # self.min_passes = 1
-        # self.improve_interval = 10
-        # self.top_k = 5
-        # self.use_dec_cost = False
-        #
-        # self.validation_size = 0
-        # self.validation_freq = 10
-        # self.validation_use_all_refs = False
-        # self.validation_delex_slots = set()
-        # self.validation_use_train_refs = False
-        # self.multiple_refs = False
-        # self.ref_selectors = None
-        # self.max_cores = None
-        # self.mode = 'tokens'
-        # self.nn_type = 'emb_seq2seq'
-        # self.randomize = True
-        # self.cell_type = 'lstm'
-        # self.bleu_validation_weight = 0.0
-        # self.use_context = False
-        #
-        # self.train_summary_dir = None
-
-    def init_slot_err_stats(self):
-        raise NotImplementedError
-
-    def _init_training(self):
-        """
-        In TGen's Seq2SeqGen class, performs further initialization for the class, including:
-        * loading trees and dialogue acts from files for training & validation data
-          * shrinking the training data if desired
-        * extracting "embeddings" for DAs and texts (i.e. creating token-to-integer mappings for all of them, potentially including preprocessing like lowercasing)
-        * calculating dimensions for tensors (i.e. vocab sizes and max DA/utterance lengths)
-        * create batches
-        * set up a lexicaliser
-        * set up a classifier filter (?)
-        * initialize costs and the NN structure
-        """
-        raise NotImplementedError()
-
     def encode(self, enc_emb: torch.Tensor):
         """
         Run encoding for a single set of integer inputs.
