@@ -130,7 +130,7 @@ class SCLSTMTrainer(BasicTrainer):
 
 class TGenTrainer(BasicTrainer):
     def __init__(self,
-                 model: "enunlg.encdec.seq2seq.TGenEncDec",
+                 model: "enunlg.encdec.tgen.TGenEncDec",
                  training_config=None):
         if training_config is None:
             # Set defaults

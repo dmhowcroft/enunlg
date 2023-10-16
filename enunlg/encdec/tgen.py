@@ -1,97 +1,34 @@
-from typing import List, Optional, Tuple, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
+from typing import Optional
 
 import omegaconf
 import torch
-import torch.nn
-import torch.nn.functional
+
+from enunlg.encdec.seq2seq import BasicLSTMEncoder, BasicDecoder
 
 DEVICE = torch.device("cpu")
 
 
-class BasicLSTMEncoder(torch.nn.Module):
-    def __init__(self, num_unique_inputs, num_embedding_dims, num_hidden_dims, init="zeros"):
+class TGenEnc(BasicLSTMEncoder):
+    def __init__(self, input_vocab_size, num_hidden_dims):
         """
-        :param num_unique_inputs:
-        :param num_embedding_dims:
+        TGen uses an LSTM encoder and embeddings with the same dimensionality as the hidden layer.
+        :param input_vocab_size:
         :param num_hidden_dims:
         """
-        super(BasicLSTMEncoder, self).__init__()
-        # Define properties
-        self.num_unique_inputs = num_unique_inputs
-        self.num_hidden_dims = num_hidden_dims
-        self.num_embedding_dims = num_embedding_dims
+        super(TGenEnc, self).__init__(input_vocab_size, num_hidden_dims, num_hidden_dims, init="zeros")
 
-        # Initialise embedding and LSTM
-        self.embedding = torch.nn.Embedding(self.num_unique_inputs, self.num_embedding_dims)
-        self.lstm = torch.nn.LSTM(self.num_embedding_dims, self.num_hidden_dims, batch_first=True)
+    @property
+    def input_vocab_size(self):
+        return self.num_unique_inputs
 
-        if init == "zeros":
-            self._hidden_state_init_func = torch.zeros
-        else:
-            self._hidden_state_init_func = lambda *args: torch.randn(*args)/torch.sqrt(torch.Tensor([self.num_hidden_dims]))
-
-    def forward(self, input_indices, h_c_state):
-        # This assumes batch first and batch size = 1
-        embedded = self.embedding(input_indices).view(1, len(input_indices), -1)
-        return self.lstm(embedded, h_c_state)
-
-    def forward_one_step(self, input_index, h_c_state):
-        # This assumes batch first and batch size = 1
-        embedded = self.embedding(input_index).view(1, 1, -1)
-        output, h_c_state = self.lstm(embedded, h_c_state)
-        return output, h_c_state
-
-    def initial_h_c_state(self):
-        # This assumes batch first and batch size = 1
-        return (self._hidden_state_init_func(1, 1, self.num_hidden_dims, device=DEVICE),
-                self._hidden_state_init_func(1, 1, self.num_hidden_dims, device=DEVICE))
+    @property
+    def hidden_size(self):
+        return self.num_hidden_dims
 
 
-class BasicDecoder(torch.nn.Module):
-    def __init__(self, hidden_layer_size, output_vocab_size, max_input_length, num_embedding_dims=None):
-        super(BasicDecoder, self).__init__()
-        self.hidden_size = hidden_layer_size
-        if num_embedding_dims is None:
-            self.embedding_size = self.hidden_size
-        else:
-            self.embedding_size = num_embedding_dims
-        self.output_vocab_size = output_vocab_size
-        self.max_input_length = max_input_length
-
-        self.output_embeddings = torch.nn.Embedding(self.output_vocab_size, self.embedding_size)
-        self.lstm = torch.nn.LSTM(self.embedding_size, self.hidden_size, batch_first=True)
-        self.output_prediction = torch.nn.Linear(self.hidden_size, self.output_vocab_size)
-
-    def forward(self, input_index, h_c_state, encoder_outputs):
-        """
-        lookup the embedding for output vocabulary `input_index`,
-        pass that embedding and the hidden state to an LSTM,
-        predict the next token distribution based on the softmax of the output of the LSTM
-        :param input_index:
-        :param h_c_state:
-        :param encoder_outputs:
-        :return:
-        """
-        embedded_output = self.output_embeddings(input_index).view(1, 1, -1)
-        output, h_c_state = self.lstm(embedded_output, h_c_state)
-
-        softmax_input = self.output_prediction(output[0][0])
-
-        output = torch.nn.functional.log_softmax(softmax_input, dim=0)
-        return output, h_c_state
-
-    def initial_h_c_state(self):
-        return (torch.zeros(1, 1, self.hidden_size, device=DEVICE),
-                torch.zeros(1, 1, self.hidden_size, device=DEVICE))
-
-
-
-class LSTMDecWithAttention(BasicDecoder):
+class TGenDec(BasicDecoder):
     def __init__(self, hidden_layer_size, output_vocab_size, max_input_length):
-        super(LSTMDecWithAttention, self).__init__(hidden_layer_size, output_vocab_size, max_input_length)
+        super(TGenDec, self).__init__(hidden_layer_size, output_vocab_size, max_input_length)
         # Only define extra layers for attention here
         self.attention = torch.nn.Linear(self.hidden_size * 2, self.max_input_length)
         self.combining_attention = torch.nn.Linear(self.hidden_size * 2, self.hidden_size)
@@ -115,9 +52,17 @@ class LSTMDecWithAttention(BasicDecoder):
         return output, h_c_state
 
 
-class Seq2SeqAttn(torch.nn.Module):
-    def __init__(self, input_vocab_size, output_vocab_size, model_config=None):
+class TGenEncDec(torch.nn.Module):
+    def __init__(self,
+                 input_vocab: "enunlg.vocabulary.IntegralInformVocabulary",
+                 output_vocab: "enunlg.vocabulary.TokenVocabulary",
+                 model_config=None):
         """
+        TGenEncDec corresponds to TGen's seq2seq model with attention.
+
+        TGen's model appears to be based on Tensorflow 0.6:
+        https://github.com/tensorflow/tensorflow/blob/v0.6.0/tensorflow/python/ops/seq2seq.py
+
         :param input_vocab:
         :param output_vocab:
         :param model_config:
@@ -125,42 +70,97 @@ class Seq2SeqAttn(torch.nn.Module):
         super().__init__()
         if model_config is None:
             # Set defaults
-            model_config = omegaconf.DictConfig({'name': 'seq2seq+attn',
-                                                 'max_input_length': 32,
+            model_config = omegaconf.DictConfig({'name': 'tgen',
+                                                 'max_input_length': 30,
                                                  'encoder':
                                                      {'embeddings':
-                                                         {'type': 'torch',
-                                                          'num_embeddings': input_vocab_size,
-                                                          'embedding_dim': 64,
-                                                          'backprop': True
-                                                          },
+                                                          {'mode': 'random',
+                                                           'dimensions': 50,
+                                                           'backprop': True
+                                                           },
                                                       'cell': 'lstm',
-                                                      'num_hidden_dims': 128},
+                                                      'num_hidden_dims': 50},
                                                  'decoder':
                                                      {'embeddings':
-                                                         {'type': 'torch',
-                                                          'num_embeddings': output_vocab_size,
-                                                          'embedding_dim': 64,
-                                                          'backprop': True
-                                                         },
+                                                          {'mode': 'random',
+                                                           'dimensions': 50,
+                                                           'backprop': True
+                                                           },
                                                       'cell': 'lstm',
-                                                      'num_hidden_dims': 128
+                                                      'num_hidden_dims': 50
                                                       }
                                                  })
-        if "num_embeddings" in model_config.encoder.embeddings:
-            assert input_vocab_size == model_config.encoder.embeddings.num_embeddings
-        if "num_embeddings" in model_config.decoder.embeddings:
-            assert output_vocab_size == model_config.decoder.embeddings.num_embeddings
         self.config = model_config
 
         # Set basic properties
-        self.input_vocab_size = input_vocab_size
-        self.output_vocab_size = output_vocab_size
+        self.input_vocab = input_vocab
+        self.input_vocab_size = input_vocab.max_index + 1
+        self.output_vocab = output_vocab
+        self.output_vocab_size = output_vocab.max_index + 1
+        self.output_stop_token = self.output_vocab.stop_token_int
 
         # Initialize encoder and decoder networks
         # TODO either tie enc-dec num hidden dims together or add code to handle config when they have diff dimensionality
-        self.encoder = BasicLSTMEncoder(self.input_vocab_size, self.config.encoder.embeddings.embedding_dim, self.config.encoder.num_hidden_dims)
-        self.decoder = LSTMDecWithAttention(self.config.decoder.num_hidden_dims, self.output_vocab_size, self.config.max_input_length)
+        self.encoder = TGenEnc(self.input_vocab_size, self.config.encoder.num_hidden_dims)
+        self.decoder = TGenDec(self.config.decoder.num_hidden_dims, self.output_vocab_size, self.config.max_input_length)
+
+        # Features copied from tgen.seq2seq.Seq2SeqBase
+        # self.beam_size = 1
+        # self.sample_top_k = 1
+        # self.length_norm_weight = 0.0
+        # self.context_bleu_weight = 0.0
+        # self.context_bleu_metric = 'bleu'
+        # self.slot_err_stats = None
+        # self.classif_filter = None
+        # self.lexicalizer = None
+        # self.init_slot_err_stats()
+
+        #
+        # Attributes based on tgen.seq2seq.Seq2SeqGen
+        # self.emb_size = 50
+        # self.batch_size = 10
+        # self.dropout_keep_prob = 1
+        # self.optimizer_type = 'adam'
+        #
+        # self.passes = 5
+        # self.min_passes = 1
+        # self.improve_interval = 10
+        # self.top_k = 5
+        # self.use_dec_cost = False
+        #
+        # self.validation_size = 0
+        # self.validation_freq = 10
+        # self.validation_use_all_refs = False
+        # self.validation_delex_slots = set()
+        # self.validation_use_train_refs = False
+        # self.multiple_refs = False
+        # self.ref_selectors = None
+        # self.max_cores = None
+        # self.mode = 'tokens'
+        # self.nn_type = 'emb_seq2seq'
+        # self.randomize = True
+        # self.cell_type = 'lstm'
+        # self.bleu_validation_weight = 0.0
+        # self.use_context = False
+        #
+        # self.train_summary_dir = None
+
+    def init_slot_err_stats(self):
+        raise NotImplementedError
+
+    def _init_training(self):
+        """
+        In TGen's Seq2SeqGen class, performs further initialization for the class, including:
+        * loading trees and dialogue acts from files for training & validation data
+          * shrinking the training data if desired
+        * extracting "embeddings" for DAs and texts (i.e. creating token-to-integer mappings for all of them, potentially including preprocessing like lowercasing)
+        * calculating dimensions for tensors (i.e. vocab sizes and max DA/utterance lengths)
+        * create batches
+        * set up a lexicaliser
+        * set up a classifier filter (?)
+        * initialize costs and the NN structure
+        """
+        raise NotImplementedError()
 
     def encode(self, enc_emb: torch.Tensor):
         """
@@ -280,3 +280,9 @@ class Seq2SeqAttn(torch.nn.Module):
                     break
                 dec_input = topi.squeeze().detach()
             return dec_outputs
+
+    def input_rep_to_string(self, input_token_indices) -> str:
+        return self.input_vocab.pretty_string(input_token_indices)
+
+    def output_rep_to_string(self, output_token_indices) -> str:
+        return self.output_vocab.pretty_string(output_token_indices)
