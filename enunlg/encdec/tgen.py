@@ -174,29 +174,7 @@ class TGenEncDec(torch.nn.Module):
         return self.encoder(enc_emb, enc_h_c_state)
 
     def forward(self, enc_emb: torch.Tensor, max_output_length: int = 50):
-        """
-        Function to perform the computation that produces the output.
-
-        This can perform arbitrary computation involving any number of inputs and outputs.
-        """
-        enc_outputs, enc_h_c_state = self.encode(enc_emb)
-
-        dec_h_c_state = enc_h_c_state
-        # TODO Replace this with a reference to the START symbol in the vocabulary
-        dec_output = 1
-        dec_outputs = [dec_output]
-
-        for _ in range(max_output_length):
-            dec_output, dec_h_c_state = self.decoder(dec_output, dec_h_c_state, enc_outputs)
-            topv, topi = dec_output.data.topk(1)
-            dec_outputs.append(topi.item())
-            # TODO Replace this with a reference to the STOP symbol in the vocabulary
-            # TODO actually, this should fill the rest of the outputs up to max_output_length with the VOID symbol in the vocab
-            if topi.item() == 2:
-                break
-            dec_output = topi.squeeze().detach()
-            dec_outputs.append(dec_output.unsqueeze(0))
-        return dec_outputs
+        raise NotImplementedError("We don't use this for generation or training atm")
 
     def forward_with_teacher_forcing(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor) -> torch.Tensor:
         enc_outputs, enc_h_c_state = self.encode(enc_emb)
