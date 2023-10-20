@@ -4,6 +4,8 @@ import time
 
 from typing import List, TYPE_CHECKING
 
+import enunlg.encdec.tgen
+
 if TYPE_CHECKING:
     import enunlg.embeddings.onehot
 
@@ -37,7 +39,7 @@ class TGenSemClassifier(torch.nn.Module):
         self.text_vocabulary = text_vocabulary
         self.onehot_encoder = onehot_encoder
 
-        self.text_encoder = s2s.TGenEnc(self.text_vocabulary.max_index + 1, self.num_hidden_dims, self.config.text_encoder.embeddings.dimensions)
+        self.text_encoder = enunlg.encdec.tgen.TGenEnc(self.text_vocabulary.max_index + 1, self.num_hidden_dims, self.config.text_encoder.embeddings.dimensions)
         self.classif_linear = torch.nn.Linear(self.num_hidden_dims, self.onehot_encoder.dimensionality)
         self.classif_sigmoid = torch.nn.Sigmoid()
 
