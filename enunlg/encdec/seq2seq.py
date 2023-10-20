@@ -51,17 +51,21 @@ class BasicLSTMEncoder(torch.nn.Module):
 
 
 class BasicDecoder(torch.nn.Module):
-    def __init__(self, hidden_layer_size, output_vocab_size, max_input_length, num_embedding_dims=None):
+    def __init__(self, hidden_layer_size, output_vocab_size, max_input_length,
+                 num_embedding_dims=None, padding_idx=None, start_token_idx=None, stop_token_idx=None):
         super(BasicDecoder, self).__init__()
         self.hidden_size = hidden_layer_size
         if num_embedding_dims is None:
             self.embedding_size = self.hidden_size
         else:
             self.embedding_size = num_embedding_dims
+        self.padding_idx = padding_idx
+        self.start_idx = start_token_idx
+        self.stop_idx = stop_token_idx
         self.output_vocab_size = output_vocab_size
         self.max_input_length = max_input_length
 
-        self.output_embeddings = torch.nn.Embedding(self.output_vocab_size, self.embedding_size)
+        self.output_embeddings = torch.nn.Embedding(self.output_vocab_size, self.embedding_size, padding_idx=self.padding_idx)
         self.lstm = torch.nn.LSTM(self.embedding_size, self.hidden_size, batch_first=True)
         self.output_prediction = torch.nn.Linear(self.hidden_size, self.output_vocab_size)
 
@@ -88,10 +92,12 @@ class BasicDecoder(torch.nn.Module):
                 torch.zeros(1, 1, self.hidden_size, device=DEVICE))
 
 
-
 class LSTMDecWithAttention(BasicDecoder):
-    def __init__(self, hidden_layer_size, output_vocab_size, max_input_length):
-        super(LSTMDecWithAttention, self).__init__(hidden_layer_size, output_vocab_size, max_input_length)
+    def __init__(self, hidden_layer_size, output_vocab_size, max_input_length,
+                 num_embedding_dims=None, padding_idx=None, start_token_idx=None, stop_token_idx=None):
+        super(LSTMDecWithAttention, self).__init__(hidden_layer_size, output_vocab_size, max_input_length,
+                                                   num_embedding_dims=num_embedding_dims, padding_idx=padding_idx,
+                                                   start_token_idx=start_token_idx, stop_token_idx=stop_token_idx)
         # Only define extra layers for attention here
         self.attention = torch.nn.Linear(self.hidden_size * 2, self.max_input_length)
         self.combining_attention = torch.nn.Linear(self.hidden_size * 2, self.hidden_size)
@@ -145,7 +151,7 @@ class Seq2SeqAttn(torch.nn.Module):
                                                          },
                                                       'cell': 'lstm',
                                                       'num_hidden_dims': 128
-                                                      }
+                                                     }
                                                  })
         if "num_embeddings" in model_config.encoder.embeddings:
             assert input_vocab_size == model_config.encoder.embeddings.num_embeddings
@@ -160,7 +166,10 @@ class Seq2SeqAttn(torch.nn.Module):
         # Initialize encoder and decoder networks
         # TODO either tie enc-dec num hidden dims together or add code to handle config when they have diff dimensionality
         self.encoder = BasicLSTMEncoder(self.input_vocab_size, self.config.encoder.embeddings.embedding_dim, self.config.encoder.num_hidden_dims)
-        self.decoder = LSTMDecWithAttention(self.config.decoder.num_hidden_dims, self.output_vocab_size, self.config.max_input_length)
+        self.decoder = LSTMDecWithAttention(self.config.decoder.num_hidden_dims, self.output_vocab_size, self.config.max_input_length,
+                                            padding_idx=self.config.decoder.embeddings.get('padding_idx'),
+                                            start_token_idx=self.config.decoder.embeddings.get('start_idx'),
+                                            stop_token_idx=self.config.decoder.embeddings.get('stop_idx'))
 
     def encode(self, enc_emb: torch.Tensor):
         """
@@ -174,38 +183,30 @@ class Seq2SeqAttn(torch.nn.Module):
         return self.encoder(enc_emb, enc_h_c_state)
 
     def forward(self, enc_emb: torch.Tensor, max_output_length: int = 50):
-        """
-        Function to perform the computation that produces the output.
-
-        This can perform arbitrary computation involving any number of inputs and outputs.
-        """
         enc_outputs, enc_h_c_state = self.encode(enc_emb)
 
         dec_h_c_state = enc_h_c_state
-        # TODO Replace this with a reference to the START symbol in the vocabulary
-        dec_output = 1
-        dec_outputs = [dec_output]
+        dec_input = torch.tensor([[self.decoder.start_idx]], device=DEVICE)
+        dec_outputs = [self.decoder.start_idx]
 
-        for _ in range(max_output_length):
-            dec_output, dec_h_c_state = self.decoder(dec_output, dec_h_c_state, enc_outputs)
+        for dec_index in range(max_output_length):
+            dec_output, dec_h_c_state = self.decoder(dec_input, dec_h_c_state, enc_outputs)
             topv, topi = dec_output.data.topk(1)
             dec_outputs.append(topi.item())
-            # TODO Replace this with a reference to the STOP symbol in the vocabulary
-            # TODO actually, this should fill the rest of the outputs up to max_output_length with the VOID symbol in the vocab
-            if topi.item() == 2:
+            if topi.item() == self.decoder.stop_idx:
                 break
-            dec_output = topi.squeeze().detach()
-            dec_outputs.append(dec_output.unsqueeze(0))
+            dec_input = topi.squeeze().detach()
         return dec_outputs
 
     def forward_with_teacher_forcing(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor) -> torch.Tensor:
         enc_outputs, enc_h_c_state = self.encode(enc_emb)
 
         dec_h_c_state = enc_h_c_state
+        # Use torch.zeros because we use padding_idx = 0
         dec_outputs = torch.zeros((len(dec_emb), self.output_vocab_size))
-        # First symbol is the start symbol
+        # the first element of dec_emb is the start token
         dec_outputs[0] = dec_emb[0]
-
+        # That's also why we skip the first element in our loop
         for dec_input_index, dec_input in enumerate(dec_emb[:-1]):
             dec_output, dec_h_c_state = self.decoder(dec_input, dec_h_c_state, enc_outputs)
             dec_outputs[dec_input_index+1] = dec_output
@@ -264,19 +265,4 @@ class Seq2SeqAttn(torch.nn.Module):
 
     def generate_greedy(self, enc_emb: torch.Tensor, max_length=50):
         with torch.no_grad():
-            enc_outputs, enc_h_c_state = self.encode(enc_emb)
-
-            dec_input = torch.tensor([[1]], device=DEVICE)
-
-            dec_h_c_state = enc_h_c_state
-
-            dec_outputs = [1]
-
-            for dec_index in range(max_length):
-                dec_output, dec_h_c_state = self.decoder(dec_input, dec_h_c_state, enc_outputs)
-                topv, topi = dec_output.data.topk(1)
-                dec_outputs.append(topi.item())
-                if topi.item() == 2:
-                    break
-                dec_input = topi.squeeze().detach()
-            return dec_outputs
+            return self.forward(enc_emb, max_length)

@@ -2,7 +2,7 @@ random_seed: 42
 pytorch:
   device: cpu
 model:
-  name: tgen
+  name: seq2seq+attn
   max_input_length: 26
   encoder:
     embeddings:
@@ -13,9 +13,12 @@ model:
     num_hidden_dims: 64
   decoder:
     embeddings:
-      mode: random
+      type: torch
       embedding_dim: 16
       backprop: True
+      padding_idx: 0
+      start_idx: 1
+      stop_idx: 2
     cell: lstm
     num_hidden_dims: 64
 
