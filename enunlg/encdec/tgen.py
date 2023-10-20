@@ -3,7 +3,7 @@ from typing import Optional
 import omegaconf
 import torch
 
-from enunlg.encdec.seq2seq import BasicLSTMEncoder, BasicDecoder
+from enunlg.encdec.seq2seq import BasicLSTMEncoder, LSTMDecWithAttention
 
 DEVICE = torch.device("cpu")
 
@@ -26,30 +26,8 @@ class TGenEnc(BasicLSTMEncoder):
         return self.num_hidden_dims
 
 
-class TGenDec(BasicDecoder):
-    def __init__(self, hidden_layer_size, output_vocab_size, max_input_length):
-        super(TGenDec, self).__init__(hidden_layer_size, output_vocab_size, max_input_length)
-        # Only define extra layers for attention here
-        self.attention = torch.nn.Linear(self.hidden_size * 2, self.max_input_length)
-        self.combining_attention = torch.nn.Linear(self.hidden_size * 2, self.hidden_size)
-
-    def forward(self, input_index, h_c_state, encoder_outputs):
-        embedded_output = self.output_embeddings(input_index).view(1, 1, -1)
-        attention_input = torch.cat((embedded_output, h_c_state[0]), dim=2)
-        attention_weights = torch.nn.functional.softmax(self.attention(attention_input), dim=2)
-        attention_applied = torch.bmm(attention_weights, encoder_outputs)
-
-        output = torch.cat((embedded_output[0], attention_applied[0]), 1)
-        output = self.combining_attention(output).unsqueeze(0)
-
-        # TGen uses tanh in its attention calculation
-        output = torch.tanh(output)
-        output, h_c_state = self.lstm(output, h_c_state)
-
-        softmax_input = self.output_prediction(output[0][0])
-
-        output = torch.nn.functional.log_softmax(softmax_input, dim=0)
-        return output, h_c_state
+class TGenDec(LSTMDecWithAttention):
+    pass
 
 
 class TGenEncDec(torch.nn.Module):
@@ -74,18 +52,20 @@ class TGenEncDec(torch.nn.Module):
                                                  'max_input_length': 30,
                                                  'encoder':
                                                      {'embeddings':
-                                                          {'mode': 'random',
-                                                           'dimensions': 50,
-                                                           'backprop': True
-                                                           },
+                                                         {'type': 'torch',
+                                                          'num_embeddings': input_vocab.max_index + 1,
+                                                          'embedding_dim': 50,
+                                                          'backprop': True
+                                                          },
                                                       'cell': 'lstm',
                                                       'num_hidden_dims': 50},
                                                  'decoder':
                                                      {'embeddings':
-                                                          {'mode': 'random',
-                                                           'dimensions': 50,
-                                                           'backprop': True
-                                                           },
+                                                         {'type': 'torch',
+                                                          'num_embeddings': output_vocab.max_index + 1,
+                                                          'dimensions': 50,
+                                                          'backprop': True
+                                                          },
                                                       'cell': 'lstm',
                                                       'num_hidden_dims': 50
                                                       }
@@ -94,15 +74,15 @@ class TGenEncDec(torch.nn.Module):
 
         # Set basic properties
         self.input_vocab = input_vocab
-        self.input_vocab_size = input_vocab.max_index + 1
         self.output_vocab = output_vocab
-        self.output_vocab_size = output_vocab.max_index + 1
-        self.output_stop_token = self.output_vocab.stop_token_int
 
         # Initialize encoder and decoder networks
         # TODO either tie enc-dec num hidden dims together or add code to handle config when they have diff dimensionality
-        self.encoder = TGenEnc(self.input_vocab_size, self.config.encoder.num_hidden_dims)
-        self.decoder = TGenDec(self.config.decoder.num_hidden_dims, self.output_vocab_size, self.config.max_input_length)
+        self.encoder = TGenEnc(self.input_vocab.size, self.config.encoder.num_hidden_dims)
+        self.decoder = TGenDec(self.config.decoder.num_hidden_dims, self.output_vocab.size, self.config.max_input_length,
+                               padding_idx=self.output_vocab.padding_token_int,
+                               start_token_idx=self.output_vocab.start_token_int,
+                               stop_token_idx=self.output_vocab.stop_token_int)
 
         # Features copied from tgen.seq2seq.Seq2SeqBase
         # self.beam_size = 1
@@ -174,13 +154,26 @@ class TGenEncDec(torch.nn.Module):
         return self.encoder(enc_emb, enc_h_c_state)
 
     def forward(self, enc_emb: torch.Tensor, max_output_length: int = 50):
-        raise NotImplementedError("We don't use this for generation or training atm")
+        enc_outputs, enc_h_c_state = self.encode(enc_emb)
+
+        dec_h_c_state = enc_h_c_state
+        dec_input = torch.tensor([[self.decoder.start_idx]], device=DEVICE)
+        dec_outputs = [self.decoder.start_idx]
+
+        for dec_index in range(max_output_length):
+            dec_output, dec_h_c_state = self.decoder(dec_input, dec_h_c_state, enc_outputs)
+            topv, topi = dec_output.data.topk(1)
+            dec_outputs.append(topi.item())
+            if topi.item() == self.decoder.stop_idx:
+                break
+            dec_input = topi.squeeze().detach()
+        return dec_outputs
 
     def forward_with_teacher_forcing(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor) -> torch.Tensor:
         enc_outputs, enc_h_c_state = self.encode(enc_emb)
 
         dec_h_c_state = enc_h_c_state
-        dec_outputs = torch.zeros((len(dec_emb), self.output_vocab_size))
+        dec_outputs = torch.zeros((len(dec_emb), self.output_vocab.size))
         # First symbol is the start symbol
         dec_outputs[0] = dec_emb[0]
 
@@ -242,22 +235,7 @@ class TGenEncDec(torch.nn.Module):
 
     def generate_greedy(self, enc_emb: torch.Tensor, max_length=50):
         with torch.no_grad():
-            enc_outputs, enc_h_c_state = self.encode(enc_emb)
-
-            dec_input = torch.tensor([[1]], device=DEVICE)
-
-            dec_h_c_state = enc_h_c_state
-
-            dec_outputs = [1]
-
-            for dec_index in range(max_length):
-                dec_output, dec_h_c_state = self.decoder(dec_input, dec_h_c_state, enc_outputs)
-                topv, topi = dec_output.data.topk(1)
-                dec_outputs.append(topi.item())
-                if topi.item() == 2:
-                    break
-                dec_input = topi.squeeze().detach()
-            return dec_outputs
+            return self.forward(enc_emb, max_length)
 
     def input_rep_to_string(self, input_token_indices) -> str:
         return self.input_vocab.pretty_string(input_token_indices)

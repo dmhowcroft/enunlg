@@ -148,6 +148,10 @@ class IntegralInformVocabulary(IntegralDialogueActVocabulary):
         self._act_dict['inform'] = self._max_index
         self._init_vocabulary(dataset, multivalued_slots)
 
+    @property
+    def size(self):
+        return self._max_index + 1
+
     def _init_vocabulary(self, dataset, multivalued_slots: bool) -> int:
         """
         Scan `self.dataset` and set up dicts to make it possible to generate embeddings.
@@ -254,6 +258,14 @@ class TokenVocabulary(object):
     @property
     def size(self):
         return self._max_index + 1
+
+    @property
+    def padding_token_int(self):
+        return self._token2int['<VOID>']
+
+    @property
+    def start_token_int(self):
+        return self._token2int['<GO>']
 
     @property
     def stop_token_int(self):
