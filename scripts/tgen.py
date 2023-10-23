@@ -14,11 +14,11 @@ import omegaconf
 import seaborn as sns
 import torch
 
+import enunlg.encdec.tgen
 from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg.data_management.e2e_challenge as e2e
 import enunlg.embeddings.onehot as onehot
-import enunlg.encdec.seq2seq as s2s
 import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.trainer
 import enunlg.util
@@ -136,7 +136,7 @@ def train_tgen(config: omegaconf.DictConfig):
 
     logging.info(f"Preparing neural network using {config.pytorch.device=}")
     DEVICE = config.pytorch.device
-    tgen = s2s.TGenEncDec(mr_int_mapper, token_int_mapper, model_config=config.model).to(DEVICE)
+    tgen = enunlg.encdec.tgen.TGenEncDec(mr_int_mapper, token_int_mapper, model_config=config.model).to(DEVICE)
 
     training_pairs = [(torch.tensor(enc_indices, dtype=torch.long, device=DEVICE),
                        torch.tensor(dec_indices, dtype=torch.long, device=DEVICE))
