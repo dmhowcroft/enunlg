@@ -10,10 +10,10 @@ import enunlg.templates.lookup as lug
 class PipelineLookupGenerator(object):
     def __init__(self, corpus: ee2e.EnrichedE2ECorpus):
         self.layers = corpus.layers
-        self.pipeline = corpus.views
+        self.pipeline = corpus.layer_pairs
         self.modules = {layer_pair: lug.OneToManyLookupGenerator() for layer_pair in self.pipeline}
         for layer_pair in self.modules:
-            self.modules[layer_pair].train(corpus.items_by_view(layer_pair))
+            self.modules[layer_pair].train(corpus.items_by_layer_pair(layer_pair))
 
     def predict(self, mr):
         curr_input = mr
