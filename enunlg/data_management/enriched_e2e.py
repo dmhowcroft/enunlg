@@ -106,36 +106,14 @@ class PipelineCorpusMapper(object):
             raise TypeError(f"Cannot run {self.__class__} on {type(input_corpus)}")
 
 
-class EnrichedE2EItem(object):
-    def __init__(self, layers: dict):
-        sanitized_layer_names = [layer_name.replace("-", "_") for layer_name in layers.keys()]
-        self.layers = sanitized_layer_names
-        for new_name, layer in zip(sanitized_layer_names, layers):
-            self.__setattr__(new_name, layers[layer])
-
-    def __getitem__(self, item):
-        return self.__getattribute__(item)
-
-    def __repr__(self):
-        attr_string = ", ".join([f"{layer}={str(self[layer])}" for layer in self.layers])
-        return f"{self.__class__.__name__}({attr_string})"
+class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
+    def __init__(self, layers):
+        super().__init__(layers)
 
 
-class EnrichedE2ECorpus(enunlg.data_management.iocorpus.IOCorpus):
-    def __init__(self, seq: List[EnrichedE2EItem]):
-        if seq:
-            layer_names = seq[0].layers
-            assert all([item.layers == layer_names for item in seq]), f"Expected all items in seq to have the layers: {layer_names}"
-            self.layers = layer_names
-        super(EnrichedE2ECorpus, self).__init__(seq)
-
-    @property
-    def views(self):
-        return [(l1, l2) for l1, l2 in zip(self.layers, self.layers[1:])]
-
-    def items_by_view(self, view):
-        for item in self:
-            yield item[view[0]], item[view[1]]
+class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
+    def __init__(self, seq: List[EnrichedE2EItem], metadata=None):
+        super(EnrichedE2ECorpus, self).__init__(seq, metadata)
 
 
 def extract_raw_input(entry):
@@ -159,13 +137,11 @@ def extract_selected_input(entry):
 def extract_ordered_input(entry):
     targets = []
     for target in entry.targets:
-        selected_inputs = []
+        mr = {}
         for sentence in target.structuring.sentences:
-            mr = {}
             for input in sentence.content:
                 mr[input.attribute] = input.value
-            selected_inputs.append(SlotValueMR(mr, frozen_box=True))
-        targets.append(tuple(selected_inputs))
+        targets.append(SlotValueMR(mr, frozen_box=True))
     return targets
 
 
