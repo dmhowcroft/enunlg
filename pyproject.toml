@@ -43,6 +43,11 @@ xsdata = "^23.8"
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
 
+[tool.poetry.group.dev.dependencies]
+mypy = "^1.6.1"
+types-regex = "^2023.10.3.0"
+types-lxml = "^2023.10.21"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

@@ -1,6 +1,6 @@
 """Code for working with WebNLG datasets as described at https://synalp.gitlabpages.inria.fr/webnlg-challenge/docs/"""
 
-from typing import Optional, Union
+from typing import List, Optional, Union
 
 import os
 
@@ -66,15 +66,17 @@ class RDFPair(enunlg.data_management.iocorpus.IOPair):
     def rdf(self, value):
         self.mr = value
 
-    def sort_mr(self, in_place: bool = True) -> Optional[dict]:
+    def sort_mr(self, in_place: bool = True) -> Optional[RDFTripleList]:
         # We'll use a list instead of a set for the ordered version
         sorted_mr = RDFTripleList(sorted(self.mr, key=lambda x: (x.predicate, x.subject, x.object)))
         if in_place:
             self.mr = sorted_mr
         else:
             return sorted_mr
+        # Added for PEP8 consistency and mypy happiness
+        return None
 
-    def sort_rdf(self, in_place: bool = True) -> Optional[dict]:
+    def sort_rdf(self, in_place: bool = True) -> Optional[RDFTripleList]:
         return self.sort_mr(in_place)
 
 
@@ -121,8 +123,8 @@ class WebNLGEntry(object):
 
 
 class WebNLGCorpus(object):
-    def __init__(self, filename: Optional[str]=None) -> None:
-        self.entries = []
+    def __init__(self, filename: Optional[str] = None) -> None:
+        self.entries: List[WebNLGEntry] = []
         if filename is not None:
             self.add_entries_from_file(filename)
 

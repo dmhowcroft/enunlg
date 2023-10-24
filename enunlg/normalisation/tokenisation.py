@@ -9,8 +9,7 @@ import abc
 
 import regex
 
-RegexRule = namedtuple(typename='RegexRule',
-                       field_names=("match_expression", "replacement_expression"))
+from enunlg.util import RegexRule
 
 
 class AbstractTokeniser(abc.ABC):

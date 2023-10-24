@@ -16,17 +16,19 @@ class IOPair:
 
 
 class Corpus(list):
-    def __init__(self, seq: Iterable) -> None:
+    def __init__(self, seq: Optional[Iterable]) -> None:
         """
         A corpus is a list of items with associated metadata
         """
+        if seq is None:
+            seq = []
         super().__init__(seq)
 
         self.metadata: Optional[Dict[str, Any]] = None
 
 
 class IOCorpus(Corpus):
-    def __init__(self, seq: Iterable) -> None:
+    def __init__(self, seq: Optional[Iterable]) -> None:
         """
         An IOCorpus is a corpus of input-output pairs.
         :param seq:

@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List, Text, TYPE_CHECKING
+from typing import Dict, Iterable, List, MutableMapping, Optional, Sequence, Set, Text, Tuple, Union, TYPE_CHECKING
 
 import bidict
 
@@ -11,10 +11,10 @@ class DialogueActEmbeddings(object):
         """Designed to create embeddings compatible with SC-LSTM."""
         self._collapse_values = collapse_values
         self._dimensionality = None
-        self._acts = set()
-        self.acts: Dict[str, int] = bidict.OrderedBidict()
-        self._slot_value_pairs = set()
-        self.slot_value_pairs = bidict.OrderedBidict()
+        self._acts: Set[str] = set()
+        self.acts: MutableMapping[str, int] = bidict.OrderedBidict()
+        self._slot_value_pairs: Set[Tuple[str, Optional[str]]] = set()
+        self.slot_value_pairs: MutableMapping[Tuple[str, Optional[str]], int] = bidict.OrderedBidict()
         self._initialise_embeddings(multi_da_seq)
 
     @property
@@ -35,8 +35,8 @@ class DialogueActEmbeddings(object):
     def slot_value_size(self):
         return len(self._slot_value_pairs)
 
-    def _slot_value_decoder(self, slot_value_box):
-        retval = []
+    def _slot_value_decoder(self, slot_value_box: MutableMapping[str, List]) -> List[Tuple[str, Optional[str]]]:
+        retval: List[Tuple[str, Optional[str]]] = []
         for slot in slot_value_box:
             if isinstance(slot_value_box[slot], Text):
                 raise ValueError(f"slot_value_decoder only works on iterables containing strings, not bare strings")

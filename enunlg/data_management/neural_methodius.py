@@ -7,8 +7,6 @@ import omegaconf
 from pyparsing import alphanums, Forward, OneOrMore, Suppress, Word, ZeroOrMore
 from typing import Iterable, List, Optional, Tuple
 
-import box
-
 import enunlg.data_management.iocorpus as iocorpus
 
 # TODO add hydra configuration for neural methodius stuff!
@@ -16,14 +14,15 @@ NEURAL_METHODIUS_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/m
 NEURAL_METHODIUS_CONFIG = omegaconf.DictConfig({'NEURAL_METHODIUS_DIR': NEURAL_METHODIUS_DIR})
 NEURAL_METHODIUS_SPLITS = ('train_without_few', 'valid', 'test')
 
-RSTNode = namedtuple("Node", ["value", "children"])
+RSTNode = namedtuple("RSTNode", ["value", "children"])
 
-def parseAction(string, location, tokens):
+
+def parse_action(string, location, tokens):
     return RSTNode(tokens[0], [RSTNode(x, []) if isinstance(x, str) else x for x in tokens[1:]])
 
 neural_methodius_rst_grammar = Forward()
 neural_methodius_rst_grammar << Suppress("[") + OneOrMore(Word(alphanums + "_.,-")) + ZeroOrMore(neural_methodius_rst_grammar) + Suppress("]")
-neural_methodius_rst_grammar.set_parse_action(parseAction)
+neural_methodius_rst_grammar.set_parse_action(parse_action)
 
 
 class MethodiusPair(iocorpus.IOPair):

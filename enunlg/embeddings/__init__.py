@@ -42,8 +42,8 @@ def embedding_model_from_config(config: DictConfig):
         raise ValueError("Expected config to specify the type of embedding to use (can be 'torch' or 'glove').")
 
     if config.type == "torch":
-        return torch.nn.Embedding(**kwargs)
+        return torch.nn.Embedding(**kwargs)  # type: ignore[misc]
     elif config.type == 'glove':
         filepath = config.vectors_file
         del kwargs['vectors_file']
-        return enunlg.embeddings.glove.GloVeEmbeddings.from_word_embedding_txt(filepath, **kwargs)
+        return enunlg.embeddings.glove.GloVeEmbeddings.from_word_embedding_txt(filepath, **kwargs)  # type: ignore[misc]

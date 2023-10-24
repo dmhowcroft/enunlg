@@ -1,17 +1,16 @@
+from typing import List, Optional, Tuple, TYPE_CHECKING
+if TYPE_CHECKING:
+    import enunlg.encdec.sclstm
+
 import logging
 import random
 import time
 
-from typing import List, Optional, Tuple, TYPE_CHECKING
-
-import enunlg.encdec.seq2seq
-
-if TYPE_CHECKING:
-    pass
-
 import omegaconf
 import sacrebleu.metrics as sm
 import torch
+
+import enunlg.encdec.seq2seq
 
 
 class BasicTrainer(object):
@@ -47,7 +46,7 @@ class BasicTrainer(object):
         self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer,
                                                                 gamma=self.config.learning_rate_decay)
 
-    def train_iterations(self, **kwargs):
+    def train_iterations(self, *args, **kwargs):
         # TODO increase consistency between SCLSTM and TGen training so we can pull things up to this level
         raise NotImplementedError("Use one of the subclasses, don't try to use this one directly")
 

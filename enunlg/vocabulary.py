@@ -1,4 +1,6 @@
-from typing import Dict, Iterable, List, Union
+from typing import Dict, Iterable, List, Union, TYPE_CHECKING
+if TYPE_CHECKING:
+    from enunlg.data_management.webnlg import RDFTriple
 
 import bidict
 
@@ -51,7 +53,7 @@ class IntegralRDFVocabulary(object):
             self._max_index += 1
             self._arg_dict[argument] = self._max_index
 
-    def get_ints(self, rdf: Iterable[object]) -> List[int]:
+    def get_ints(self, rdf: "Iterable[RDFTriple]") -> List[int]:
         """
         Embed `rdf` based on the mappings built from `self.dataset`.
 
@@ -69,7 +71,7 @@ class IntegralRDFVocabulary(object):
             embedding.append(self._arg_dict[triple.object])
         return embedding
 
-    def get_ints_with_padding(self, rdf: Iterable[object], max_da_length: int = 10):
+    def get_ints_with_padding(self, rdf: "Iterable[RDFTriple]", max_da_length: int = 10):
         embedding = self.get_ints(rdf)
         if len(embedding) > max_da_length * 3:
             # Truncate
@@ -79,15 +81,15 @@ class IntegralRDFVocabulary(object):
             padding = [self._predicate_dict['PRED_UNK'], self._arg_dict['ARG_UNK'], self._arg_dict['ARG_UNK']] * int((max_da_length * 3 - len(embedding)) / 3)
             return padding + embedding
 
-    def get_tokens(self, rdf_integers: Iterable[int], drop_filler=True):
+    def get_tokens(self, rdf_integers: Iterable[int], drop_filler=True) -> List[str]:
         output = []
         for index, integer in enumerate(rdf_integers):
             if drop_filler and integer in (0, 1):
                 continue
             if index % 3 == 0:
-                output.append(self._predicate_dict.inv[integer])
+                output.append(self._predicate_dict.inverse[integer])
             else:
-                output.append(self._arg_dict.inv[integer])
+                output.append(self._arg_dict.inverse[integer])
         return output
 
     def pretty_string(self, rdf_integers: Iterable[int], drop_filler=True) -> str:
@@ -152,7 +154,7 @@ class IntegralInformVocabulary(IntegralDialogueActVocabulary):
     def size(self):
         return self._max_index + 1
 
-    def _init_vocabulary(self, dataset, multivalued_slots: bool) -> int:
+    def _init_vocabulary(self, dataset, multivalued_slots: bool) -> None:
         """
         Scan `self.dataset` and set up dicts to make it possible to generate embeddings.
         :return: the size of the vocabulary (i.e. the max index value associated with a dialogue act, slot, or value)
@@ -165,7 +167,6 @@ class IntegralInformVocabulary(IntegralDialogueActVocabulary):
                         self._add_value_if_new(value)
                 else:
                     self._add_value_if_new(mr[slot])
-        return self._max_index
 
     def _add_slot_if_new(self, slot: str) -> None:
         if slot not in self._slot_dict:
@@ -212,11 +213,11 @@ class IntegralInformVocabulary(IntegralDialogueActVocabulary):
             if drop_filler and integer in (0, 1, 2):
                 continue
             if index % 3 == 0:
-                output.append(self._act_dict.inv[integer])
+                output.append(self._act_dict.inverse[integer])
             if index % 3 == 1:
-                output.append(self._slot_dict.inv[integer])
+                output.append(self._slot_dict.inverse[integer])
             if index % 3 == 2:
-                output.append(self._value_dict.inv[integer])
+                output.append(self._value_dict.inverse[integer])
         return output
 
     def pretty_string(self, da_integers: Iterable[int], drop_filler=True) -> str:
@@ -348,7 +349,7 @@ class TokenVocabulary(object):
             return embedding
 
     def get_token(self, token_integer: int) -> str:
-        return self._token2int.inv[token_integer]
+        return self._token2int.inverse[token_integer]
 
     def get_tokens(self, token_integers: Iterable[int], drop_filler=True) -> List[str]:
         """

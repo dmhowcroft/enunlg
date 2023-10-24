@@ -8,6 +8,7 @@ import enunlg.encdec.tgen
 
 if TYPE_CHECKING:
     import enunlg.embeddings.onehot
+    import enunlg.vocabulary
 
 import omegaconf
 import torch
@@ -39,7 +40,7 @@ class TGenSemClassifier(torch.nn.Module):
         self.text_vocabulary = text_vocabulary
         self.onehot_encoder = onehot_encoder
 
-        self.text_encoder = enunlg.encdec.tgen.TGenEnc(self.text_vocabulary.max_index + 1, self.num_hidden_dims, self.config.text_encoder.embeddings.dimensions)
+        self.text_encoder = enunlg.encdec.tgen.TGenEnc(self.text_vocabulary.max_index + 1, self.num_hidden_dims)
         self.classif_linear = torch.nn.Linear(self.num_hidden_dims, self.onehot_encoder.dimensionality)
         self.classif_sigmoid = torch.nn.Sigmoid()
 
@@ -104,7 +105,7 @@ class TGenSemClassifier(torch.nn.Module):
                     loss_to_plot.append(avg_loss)
                     for i, o in pairs[:10]:
                         logging.info("An example!")
-                        logging.info(f"Text:   {' '.join([x for x in self.text_vocabulary.get_tokens(i.tolist(), as_string=False) if x != '<VOID>'])}")
+                        logging.info(f"Text:   {' '.join([x for x in self.text_vocabulary.get_tokens(i.tolist()) if x != '<VOID>'])}")
                         logging.info(f"MR:     {self.onehot_encoder.embedding_to_string(o.tolist())}")
                         prediction = self.predict(i).squeeze(0).squeeze(0).tolist()
                         output_list = [1.0 if x > 0.95 else 0.0 for x in prediction]

@@ -1,12 +1,8 @@
-from collections import namedtuple
 from typing import List
 
 import abc
 
 import regex
-
-RegexRule = namedtuple(typename='RegexRule',
-                       field_names=("match_expression", "replacement_expression"))
 
 
 class AbstractNormaliser(abc.ABC):

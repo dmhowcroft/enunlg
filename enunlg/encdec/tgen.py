@@ -1,4 +1,6 @@
-from typing import Optional
+from typing import List, Optional, Tuple, TYPE_CHECKING
+if TYPE_CHECKING:
+    import enunlg.vocabulary
 
 import omegaconf
 import torch

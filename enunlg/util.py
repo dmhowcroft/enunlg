@@ -1,9 +1,15 @@
+from collections import namedtuple
+
 import logging
+
+
+RegexRule = namedtuple('RegexRule', ("match_expression", "replacement_expression"))
 
 
 def log_sequence(seq, indent="") -> None:
     for element in seq:
         logging.info(f"{indent}{element}")
+
 
 def count_parameters(model):
     """

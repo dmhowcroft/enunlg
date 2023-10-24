@@ -1,7 +1,7 @@
 """SCLSTM Cells and RNNs based on https://github.com/pytorch/pytorch/blob/master/benchmarks/fastrnns/custom_lstms.py"""
 
 from collections import namedtuple
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TypeVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
     import enunlg.embeddings
@@ -386,10 +386,13 @@ class BaseSCLSTMModel(torch.nn.Module):
                 hcd_states.append(last_hcd_state)
             dec_outputs = torch.stack(dec_outputs).squeeze(1)
         # Squeezing the batch out of outputs
-        loss = criterion(dec_outputs.squeeze(1), target_token_indices[1:]) +\
+        loss = criterion(dec_outputs.squeeze(1), target_token_indices[1:]) + \
                torch.sum(torch.abs(last_hcd_state[-1]))
 
         if hcd_states:
+            # The following raises a "Tensor not callable" error in mypy, even if we refactor to make it inline
+            # as part of the original assignment to loss above.
+            # TODO find out why
             loss += self.one_at_a_time_cost(hcd_states)
         # print(f"{dec_outputs.data.topk(1)=}")
         # print(f"{dec_outputs.size()=}")
@@ -499,6 +502,9 @@ class SCLSTMModelAsReleasedWithGlove(SCLSTMModelAsReleased):
         self.token_embeddings = embedding_layer
         self.token_embeddings.requires_grad_(model_config.embeddings.backprop)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
+
+
+SCLSTMModel = TypeVar("SCLSTMModel", bound=BaseSCLSTMModel)
 
 
 def test_script_lstm_layer(seq_len, batch, input_size, hidden_size):

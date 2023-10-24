@@ -1,17 +1,18 @@
+from typing import Dict
+
 import logging
 
 import omegaconf
 import torch
 
-import enunlg.vocabulary
-
 logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
 import enunlg.data_management.enriched_e2e as ee2e
 import enunlg.data_management.pipelinecorpus
-import enunlg.meaning_representation.slot_value
 import enunlg.encdec.seq2seq as s2s
+import enunlg.meaning_representation.slot_value
 import enunlg.trainer
+import enunlg.vocabulary
 
 
 class TextPipelineCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
@@ -41,7 +42,7 @@ class PipelineSeq2SeqGenerator(object):
         self.pipeline = corpus.layer_pairs
         self.max_length_any_layer = max_length_any_input_layer(corpus)
         self.modules = {layer_pair: None for layer_pair in self.pipeline}
-        self.vocabularies = {layer: None for layer in self.layers}
+        self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: None for layer in self.layers} # type: ignore[misc]
         # There's definitely a cleaner way to do this, but we're lazy and hacky for a first prototype
         self.input_embeddings = {layer: None for layer in self.layers}
         self.output_embeddings = {layer: None for layer in self.layers}

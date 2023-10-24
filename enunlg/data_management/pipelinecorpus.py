@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, TypeVar, Union
 
 import enunlg.data_management.iocorpus
 
@@ -27,8 +27,11 @@ class PipelineItem(object):
         return f"{self.__class__.__name__}({attr_string})"
 
 
+AnyPipelineItemSubclass = TypeVar("AnyPipelineItemSubclass", bound=PipelineItem)
+
+
 class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
-    def __init__(self, seq: Optional[List[PipelineItem]] = None, metadata: Optional[dict] = None):
+    def __init__(self, seq: Optional[List[AnyPipelineItemSubclass]] = None, metadata: Optional[dict] = None):
         if metadata is None:
             self.metadata = {'name': None,
                              'splits': None,

@@ -49,12 +49,10 @@ def extract_reg_from_template_and_text(text, template):
         result_dict[key].append(value)
     return result_dict
 
+
 class EnrichedE2ECorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
     def __init__(self, seq: Optional[Iterable] = None, filename_or_list: Optional[Union[str, List[str]]] = None):
-        if seq is None:
-            seq = []
         super().__init__(seq)
-        self.entries = []
         if filename_or_list is not None:
             if isinstance(filename_or_list, list):
                 for filename in filename_or_list:
@@ -64,11 +62,10 @@ class EnrichedE2ECorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
                 self.load_file(filename_or_list)
             else:
                 raise TypeError(f"Expected filename_or_list to be None, str, or list, not {type(filename_or_list)}")
-            self.extend(self.entries)
 
     def load_file(self, filename):
         entries_object = xsparsers.XmlParser().parse(filename, EnrichedE2EEntries)
-        self.entries.extend(entries_object.entries)
+        self.extend(entries_object.entries)
 
 
 class PipelineCorpusMapper(object):
@@ -180,7 +177,7 @@ def extract_raw_output(entry):
     return [target.text for target in entry.targets]
 
 
-def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_config: Optional[SlotValueMR] = None) -> EnrichedE2ECorpus:
+def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_config: Optional[omegaconf.DictConfig] = None) -> EnrichedE2ECorpus:
     """
 
     :param splits: which splits to load
@@ -202,12 +199,11 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
         logging.info(split)
         fns.extend([os.path.join(data_directory, split, fn) for fn in os.listdir(os.path.join(data_directory, split))])
 
-    corpus = EnrichedE2ECorpusRaw(filename_or_list=fns)
+    corpus: EnrichedE2ECorpusRaw = EnrichedE2ECorpusRaw(filename_or_list=fns)
     corpus.metadata = {'name': corpus_name,
                        'splits': splits,
                        'directory': data_directory}
     logging.info(len(corpus))
-    #lambda entry: [x.sentence.content for x in entry.targets.structuring]
 
     enriched_e2e_factory = PipelineCorpusMapper(EnrichedE2ECorpusRaw, EnrichedE2EItem,
                                                 {'raw-input': lambda entry: extract_raw_input(entry),
@@ -218,6 +214,7 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
                                                  'referring-expressions': extract_reg_completed_lex_random,
                                                  'raw-output': extract_raw_output})
 
-    corpus = EnrichedE2ECorpus(enriched_e2e_factory(corpus))
+    # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
+    corpus: EnrichedE2ECorpus = EnrichedE2ECorpus(enriched_e2e_factory(corpus))
     logging.info(f"Corpus contains {len(corpus)} entries.")
     return corpus

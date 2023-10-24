@@ -40,6 +40,8 @@ class E2EPair(iocorpus.IOPair):
             self.mr = sorted_mr
         else:
             return sorted_mr
+        # Added for PEP8 consistency and mypy happiness
+        return None
 
 
 class E2ECorpus(iocorpus.IOCorpus):
