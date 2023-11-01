@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Dict
 
 import logging
@@ -32,6 +33,8 @@ def max_length_any_input_layer(corpus):
     for item in corpus:
         for layer in item.layers:
             if len(item[layer]) > max_length:
+                logging.debug(f"New longest field, this time a {layer}")
+                logging.debug(item[layer])
                 max_length = len(item[layer])
     return max_length
 
@@ -41,6 +44,7 @@ class PipelineSeq2SeqGenerator(object):
         self.layers = corpus.layers
         self.pipeline = corpus.layer_pairs
         self.max_length_any_layer = max_length_any_input_layer(corpus)
+        logging.debug(f"{self.max_length_any_layer=}")
         self.modules = {layer_pair: None for layer_pair in self.pipeline}
         self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: None for layer in self.layers} # type: ignore[misc]
         # There's definitely a cleaner way to do this, but we're lazy and hacky for a first prototype
@@ -58,7 +62,6 @@ class PipelineSeq2SeqGenerator(object):
         for layer in self.layers:
             self.input_embeddings[layer] = [torch.tensor(self.vocabularies[layer].get_ints_with_left_padding(item, self.max_length_any_layer), dtype=torch.long) for item in corpus.items_by_layer(layer)]
             self.output_embeddings[layer] = [torch.tensor(self.vocabularies[layer].get_ints(item), dtype=torch.long) for item in corpus.items_by_layer(layer)]
-
 
     def initialize_seq2seq_modules(self, corpus):
         # Define a default model config; we'll improve this later
@@ -79,8 +82,8 @@ class PipelineSeq2SeqGenerator(object):
                                                    },
                                     "cell": "lstm",
                                     "num_hidden_dims": 64}})
-        training_config = omegaconf.DictConfig({"num_epochs": 20,
-                                                "record_interval": 100,
+        training_config = omegaconf.DictConfig({"num_epochs": 5,
+                                                "record_interval": 410,
                                                 "shuffle": True,
                                                 "batch_size": 1,
                                                 "optimizer": "adam",
@@ -104,17 +107,20 @@ class PipelineSeq2SeqGenerator(object):
         for layer_pair in self.modules:
             logging.debug(layer_pair)
             logging.debug(curr_input)
-            curr_output = self.modules[layer_pair].predict(curr_input)
+            curr_output = self.modules[layer_pair].generate(curr_input, max_length=self.max_length_any_layer)
             logging.debug(curr_output)
-            curr_input = curr_output
+            padded_output = [self.vocabularies[layer_pair[0]].padding_token_int] * (self.max_length_any_layer - len(curr_output) + 2) + curr_output
+            curr_input = torch.tensor(padded_output)
         return curr_output
 
 
 def sanitize_slot_names(slot_name):
     return slot_name
 
+
 def sanitize_values(value):
     return value.replace(" ", "_").replace("'", "_")
+
 
 def linearize_slot_value_mr(mr: enunlg.meaning_representation.slot_value.SlotValueMR):
     tokens = ["<MR>"]
@@ -144,16 +150,19 @@ if __name__ == "__main__":
                                'selected_input': linearize_slot_value_mr,
                                'ordered_input': linearize_slot_value_mr,
                                'sentence_segmented_input': linearize_slot_value_mr_seq,
-                               'lexicalisation': lambda x: x,
-                               'referring_expressions': lambda x: x,
-                               'raw_output': lambda x: x}
+                               'lexicalisation': lambda x: x.strip().split(),
+                               'referring_expressions': lambda x: x.strip().split(),
+                               'raw_output': lambda x: x.strip().split()}
 
+    corpus.print_summary_stats()
+    print("____________")
     text_corpus = TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
+    text_corpus.print_summary_stats()
 
     psg = PipelineSeq2SeqGenerator(corpus)
-    print(psg.vocabularies["raw_input"]._token2int)
+    mr_input_vocab = psg.vocabularies["raw_input"]
     for entry in corpus:
         mr = entry.raw_input
         print(mr)
-        print(psg.predict(mr))
+        print(psg.predict(torch.tensor(mr_input_vocab.get_ints_with_left_padding(mr, psg.max_length_any_layer), dtype=torch.long)))
         print("----")
