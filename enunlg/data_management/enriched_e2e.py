@@ -27,7 +27,7 @@ DIFFER = difflib.Differ()
 
 
 def extract_reg_from_template_and_text(text, template):
-    diff = DIFFER.compare(text, template)
+    diff = DIFFER.compare(text.strip().split(), template.strip().split())
     keys = []
     values = []
     curr_add = []
