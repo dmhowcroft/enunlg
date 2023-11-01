@@ -1,7 +1,6 @@
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple
 
-if TYPE_CHECKING:
-    pass
+import logging
 
 import omegaconf
 import torch
@@ -99,13 +98,17 @@ class LSTMDecWithAttention(BasicDecoder):
                                                    num_embedding_dims=num_embedding_dims, padding_idx=padding_idx,
                                                    start_token_idx=start_token_idx, stop_token_idx=stop_token_idx)
         # Only define extra layers for attention here
-        self.attention = torch.nn.Linear(self.hidden_size * 2, self.max_input_length)
+        # Not sure exactly why the max input length needs to be two longer -- can't figure out where that's coming from
+        self.attention = torch.nn.Linear(self.hidden_size * 2, self.max_input_length + 2)
         self.combining_attention = torch.nn.Linear(self.hidden_size * 2, self.hidden_size)
 
     def forward(self, input_index, h_c_state, encoder_outputs):
         embedded_output = self.output_embeddings(input_index).view(1, 1, -1)
+        logging.debug(f"{embedded_output.size()=}")
         attention_input = torch.cat((embedded_output, h_c_state[0]), dim=2)
         attention_weights = torch.nn.functional.softmax(self.attention(attention_input), dim=2)
+        logging.debug(f"{attention_weights.size()=}")
+        logging.debug(f"{encoder_outputs.size()=}")
         attention_applied = torch.bmm(attention_weights, encoder_outputs)
 
         output = torch.cat((embedded_output[0], attention_applied[0]), 1)
@@ -165,8 +168,12 @@ class Seq2SeqAttn(torch.nn.Module):
 
         # Initialize encoder and decoder networks
         # TODO either tie enc-dec num hidden dims together or add code to handle config when they have diff dimensionality
-        self.encoder = BasicLSTMEncoder(self.input_vocab_size, self.config.encoder.embeddings.embedding_dim, self.config.encoder.num_hidden_dims)
-        self.decoder = LSTMDecWithAttention(self.config.decoder.num_hidden_dims, self.output_vocab_size, self.config.max_input_length,
+        self.encoder = BasicLSTMEncoder(self.input_vocab_size,
+                                        self.config.encoder.embeddings.embedding_dim,
+                                        self.config.encoder.num_hidden_dims)
+        self.decoder = LSTMDecWithAttention(self.config.decoder.num_hidden_dims,
+                                            self.output_vocab_size,
+                                            self.config.max_input_length,
                                             padding_idx=self.config.decoder.embeddings.get('padding_idx'),
                                             start_token_idx=self.config.decoder.embeddings.get('start_idx'),
                                             stop_token_idx=self.config.decoder.embeddings.get('stop_idx'))
