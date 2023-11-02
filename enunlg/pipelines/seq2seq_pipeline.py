@@ -69,20 +69,20 @@ class PipelineSeq2SeqGenerator(object):
         model_config = omegaconf.DictConfig({"name": "seq2seq+attn",
                         "max_input_length": max_length_any_input_layer(corpus),
                         "encoder": {"embeddings": {"type": "torch",
-                                                   "embedding_dim": 16,
+                                                   "embedding_dim": 50,
                                                    "backprop": True},
                                     "cell": "lstm",
-                                    "num_hidden_dims": 64},
+                                    "num_hidden_dims": 50},
                         "decoder": {"embeddings": {"type": "torch",
-                                                   "embedding_dim": 16,
+                                                   "embedding_dim": 50,
                                                    "backprop": True,
                                                    "padding_idx": 0,
                                                    "start_idx": 1,
                                                    "stop_idx": 2
                                                    },
                                     "cell": "lstm",
-                                    "num_hidden_dims": 64}})
-        training_config = omegaconf.DictConfig({"num_epochs": 5,
+                                    "num_hidden_dims": 50}})
+        training_config = omegaconf.DictConfig({"num_epochs": 20,
                                                 "record_interval": 410,
                                                 "shuffle": True,
                                                 "batch_size": 1,
@@ -99,7 +99,10 @@ class PipelineSeq2SeqGenerator(object):
                                                         training_config=training_config,
                                                         input_vocab=self.vocabularies[in_layer],
                                                         output_vocab=self.vocabularies[out_layer])
-            trainer.train_iterations([(x[0], x[1]) for x in zip(self.input_embeddings[in_layer], self.output_embeddings[out_layer])])
+            corpus_pairs = [(x[0], x[1]) for x in zip(self.input_embeddings[in_layer], self.output_embeddings[out_layer])]
+            idx_for_90_percent_split = int(len(corpus_pairs) * 0.9)
+            trainer.train_iterations(corpus_pairs[:idx_for_90_percent_split],
+                                     validation_pairs=corpus_pairs[idx_for_90_percent_split:])
 
     def predict(self, mr):
         # TODO we will need to add padding to the output of each layer before it can be used as input for the next
@@ -158,11 +161,13 @@ if __name__ == "__main__":
     print("____________")
     text_corpus = TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
     text_corpus.print_summary_stats()
+    text_corpus.print_sample(0, 5)
 
     psg = PipelineSeq2SeqGenerator(corpus)
     mr_input_vocab = psg.vocabularies["raw_input"]
-    for entry in corpus:
+    for entry in corpus[:10]:
         mr = entry.raw_input
         print(mr)
-        print(psg.predict(torch.tensor(mr_input_vocab.get_ints_with_left_padding(mr, psg.max_length_any_layer), dtype=torch.long)))
+        output_seq = psg.predict(torch.tensor(mr_input_vocab.get_ints_with_left_padding(mr, psg.max_length_any_layer), dtype=torch.long))
+        print(psg.vocabularies['raw_output'].get_tokens(output_seq))
         print("----")
