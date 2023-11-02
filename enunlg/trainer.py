@@ -127,103 +127,9 @@ class SCLSTMTrainer(BasicTrainer):
         return loss_to_plot
 
 
-class TGenTrainer(BasicTrainer):
-    def __init__(self,
-                 model: "enunlg.encdec.tgen.TGenEncDec",
-                 training_config=None):
-        if training_config is None:
-            # Set defaults
-            training_config = omegaconf.DictConfig({"num_epochs": 20,
-                                                    "record_interval": 1000,
-                                                    "shuffle": True,
-                                                    "batch_size": 1,
-                                                    "optimizer": "adam",
-                                                    "learning_rate": 0.0005,
-                                                    "learning_rate_decay": 0.5 # TGen used 0.0
-                                                   })
-        super().__init__(model, training_config)
-        self._early_stopping_scores = [float('-inf')] * 5
-        self._early_stopping_scores_changed = -1
-
-    def train_iterations(self,
-                         pairs: List[Tuple[torch.Tensor, torch.Tensor]],
-                         validation_pairs: Optional[List[Tuple[torch.Tensor, torch.Tensor]]] = None) -> List[float]:
-        """
-        Run `epochs` training epochs over all training pairs, shuffling pairs in place each epoch.
-
-        :param pairs: input and output indices for embeddings
-        :param validation_pairs: input and output indices for embeddings to be used in the validation step
-        :return: list of average loss for each `record_interval` for each epoch
-        """
-        start_time = time.time()
-        prev_chunk_start_time = start_time
-        loss_this_interval = 0
-        loss_to_plot = []
-
-        for epoch in range(self.epochs):
-            logging.info(f"Beginning epoch {epoch}...")
-            self._curr_epoch = epoch
-            self._log_epoch_begin_stats()
-            random.shuffle(pairs)
-            for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
-                loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss)
-                loss_this_interval += loss
-                if index % self.record_interval == 0:
-                    avg_loss = loss_this_interval / self.record_interval
-                    loss_this_interval = 0
-                    logging.info("------------------------------------")
-                    logging.info(f"{index} iteration loss = {avg_loss}")
-                    logging.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
-                    prev_chunk_start_time = time.time()
-                    loss_to_plot.append(avg_loss)
-                    self._log_examples_this_interval(pairs[:10])
-            if validation_pairs is not None:
-                logging.info("Checking for early stopping!")
-                # Add check for minimum number of passes
-                if self.early_stopping_criterion_met(validation_pairs):
-                    break
-            self.scheduler.step()
-            logging.info("============================================")
-        logging.info("----------")
-        logging.info(f"Training took {(time.time() - start_time) / 60} minutes")
-        return loss_to_plot
-
-    def early_stopping_criterion_met(self, validation_pairs):
-        # TGen uses BLEU score for validation
-        # Generate current realisations for MRs in validation pairs
-        best_outputs = []
-        ref_outputs = []
-        for in_indices, out_indices in validation_pairs:
-            # logging.info(f"Input:  {self.model.input_vocab.pretty_string(in_indices.tolist())}")
-            # logging.info(f"Greedy: {self.model.output_vocab.pretty_string(self.model.generate_greedy(in_indices))}")
-            # TGen does beam_size 10 and sets expansion size to be the same
-            # (See TGen config.yaml line 35 and seq2seq.py line 219 `new_paths.extend(path.expand(self.beam_size, out_probs, st))`)
-            cur_outputs = self.model.generate_beam(in_indices, beam_size=10, num_expansions=10)
-            # The best output is the first one in the list, and the list contains pairs of length normalised logprobs along with the output indices
-            best_outputs.append(self.model.output_vocab.pretty_string(cur_outputs[0][1]))
-            ref_outputs.append(self.model.output_vocab.pretty_string(out_indices.tolist()))
-        # Calculate BLEU compared to targets
-        bleu = sm.BLEU()
-        # We only have one reference per output
-        bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
-        logging.info(f"Current score: {bleu_score}")
-        if bleu_score.score > self._early_stopping_scores[-1]:
-            self._early_stopping_scores.append(bleu_score.score)
-            self._early_stopping_scores = sorted(self._early_stopping_scores)[1:]
-            self._early_stopping_scores_changed = self._curr_epoch
-        # If BLEU score has changed recently, keep training
-        # NOTE: right now we're using the length of _early_stopping_scores to effectively ensure a minimum of 5 epochs
-        if self._curr_epoch - self._early_stopping_scores_changed < len(self._early_stopping_scores):
-            return False
-        # Otherwise, stop early
-        else:
-            logging.info("Scores have not improved recently on the validation set, so we are stopping training now.")
-            return True
-
-
 class Seq2SeqAttnTrainer(BasicTrainer):
     def __init__(self,
-                 model: "enunlg.encdec.seq2seq.Seq2SeqAttn",
+                 model: "enunlg.encdec.seq2seq.Seq2SeqAttn|enunlg.encdec.tgen.TGenEncDec",
                  training_config=None,
                  input_vocab=None,
                  output_vocab=None):
@@ -235,11 +141,12 @@ class Seq2SeqAttnTrainer(BasicTrainer):
                                                     "batch_size": 1,
                                                     "optimizer": "adam",
                                                     "learning_rate": 0.001,
-                                                    "learning_rate_decay": 0.5 # TGen used 0.0
+                                                    "learning_rate_decay": 0.5  # TGen used 0.0
                                                    })
         super().__init__(model, training_config)
         self.input_vocab = input_vocab
         self.output_vocab = output_vocab
+        self._curr_epoch = -1
         self._early_stopping_scores = [float('-inf')] * 5
         self._early_stopping_scores_changed = -1
 
@@ -280,7 +187,7 @@ class Seq2SeqAttnTrainer(BasicTrainer):
                     avg_loss = loss_this_interval / self.record_interval
                     loss_this_interval = 0
                     logging.info("------------------------------------")
-                    logging.info(f"{index} iteration loss = {avg_loss}")
+                    logging.info(f"{index} iteration mean loss = {avg_loss}")
                     logging.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
                     prev_chunk_start_time = time.time()
                     loss_to_plot.append(avg_loss)
@@ -312,8 +219,6 @@ class Seq2SeqAttnTrainer(BasicTrainer):
             ref_outputs.append(self.output_vocab.pretty_string(out_indices.tolist()))
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
-        print(best_outputs)
-        print([ref_outputs])
         # We only have one reference per output
         bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
         logging.info(f"Current score: {bleu_score}")
@@ -329,3 +234,20 @@ class Seq2SeqAttnTrainer(BasicTrainer):
         else:
             logging.info("Scores have not improved recently on the validation set, so we are stopping training now.")
             return True
+
+
+class TGenTrainer(Seq2SeqAttnTrainer):
+    def __init__(self,
+                 model: "enunlg.encdec.tgen.TGenEncDec",
+                 training_config=None):
+        if training_config is None:
+            # Set defaults
+            training_config = omegaconf.DictConfig({"num_epochs": 20,
+                                                    "record_interval": 1000,
+                                                    "shuffle": True,
+                                                    "batch_size": 1,
+                                                    "optimizer": "adam",
+                                                    "learning_rate": 0.0005,
+                                                    "learning_rate_decay": 0.5  # TGen used 0.0
+                                                   })
+        super().__init__(model, training_config, input_vocab=model.input_vocab, output_vocab=model.output_vocab)
