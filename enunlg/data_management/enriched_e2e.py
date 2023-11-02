@@ -1,5 +1,6 @@
 from collections import defaultdict
-from typing import Callable, Dict, Iterable, List, Optional, Union
+from collections.abc import MutableMapping
+from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 
 import difflib
 import logging
@@ -9,9 +10,8 @@ import random
 import omegaconf
 import xsdata.formats.dataclass.parsers as xsparsers
 
-from enunlg.formats.xml.enriched_e2e import EnrichedE2EEntries
+from enunlg.formats.xml.enriched_e2e import EnrichedE2EEntries, EnrichedE2EEntry
 from enunlg.meaning_representation.slot_value import SlotValueMR
-import enunlg.data_management.iocorpus
 import enunlg.data_management.pipelinecorpus
 
 # TODO add hydra configuration for enriched e2e stuff
@@ -26,7 +26,7 @@ DELEX_LABELS = ["__AREA__", "__CUSTOMER_RATING__", "__EATTYPE__", "__FAMILYFRIEN
 DIFFER = difflib.Differ()
 
 
-def extract_reg_from_template_and_text(text, template):
+def extract_reg_from_template_and_text(text: str, template: str) -> MutableMapping[str, List[str]]:
     diff = DIFFER.compare(text.strip().split(), template.strip().split())
     keys = []
     values = []
@@ -34,9 +34,9 @@ def extract_reg_from_template_and_text(text, template):
     curr_min = []
     for x in diff:
         if x.startswith('-'):
-            curr_min.append(x[2])
+            curr_min.append(x.split()[1])
         elif x.startswith('+'):
-            curr_add.append(x[2])
+            curr_add.append(x.split()[1])
         else:
             if curr_min:
                 values.append("".join(curr_min))
@@ -113,14 +113,14 @@ class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
         super(EnrichedE2ECorpus, self).__init__(seq, metadata)
 
 
-def extract_raw_input(entry):
+def extract_raw_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
     mr = {}
-    for input in entry.source.inputs:
-        mr[input.attribute] = input.value
+    for source_input in entry.source.inputs:
+        mr[source_input.attribute] = source_input.value
     return [SlotValueMR(mr, frozen_box=True)]
 
 
-def extract_selected_input(entry):
+def extract_selected_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
     targets = []
     for target in entry.targets:
         mr = {}
@@ -131,7 +131,7 @@ def extract_selected_input(entry):
     return targets
 
 
-def extract_ordered_input(entry):
+def extract_ordered_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
     targets = []
     for target in entry.targets:
         mr = {}
@@ -142,7 +142,7 @@ def extract_ordered_input(entry):
     return targets
 
 
-def extract_sentence_segmented_input(entry):
+def extract_sentence_segmented_input(entry: EnrichedE2EEntry) -> List[Tuple[SlotValueMR]]:
     targets = []
     for target in entry.targets:
         selected_inputs = []
@@ -155,31 +155,39 @@ def extract_sentence_segmented_input(entry):
     return targets
 
 
-def extract_lexicalization(entry):
+def extract_lexicalization(entry: EnrichedE2EEntry) -> List[str]:
     return [target.lexicalization for target in entry.targets]
 
 
-def extract_reg_completed_lex_random(entry):
+def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
     texts = [target.text for target in entry.targets]
     templates = [target.template for target in entry.targets]
-    texts_templates = zip(texts, templates)
     lexes = [target.lexicalization for target in entry.targets]
-    regged_lexes = []
-    for pair, lex in zip(texts_templates, lexes):
-        reg_dict = extract_reg_from_template_and_text(pair[0], pair[1])
-        for key in reg_dict:
-            lex = lex.replace(key, random.choice(reg_dict[key]))
-        regged_lexes.append(lex)
-    return regged_lexes
+    reg_lexes = []
+    for text, template, lex in zip(texts, templates, lexes):
+        reg_dict = extract_reg_from_template_and_text(text, template)
+        new_lex = []
+        curr_text_idx = 0
+        for lex_token in lex.split():
+            if lex_token.startswith("__"):
+                possible_targets = reg_dict[lex_token]
+                for text_idx, text_token in enumerate(text.split()[curr_text_idx:]):
+                    if text_token in possible_targets:
+                        new_lex.append(text_token)
+                        curr_text_idx += text_idx
+                        break
+            else:
+                new_lex.append(lex_token)
+        reg_lexes.append(" ".join(new_lex))
+    return reg_lexes
 
 
-def extract_raw_output(entry):
+def extract_raw_output(entry: EnrichedE2EEntry) -> List[str]:
     return [target.text for target in entry.targets]
 
 
 def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_config: Optional[omegaconf.DictConfig] = None) -> EnrichedE2ECorpus:
     """
-
     :param splits: which splits to load
     :param enriched_e2e_config: a SlotValueMR or omegaconf.DictConfig like object containing the basic
                                 information about the e2e corpus to be used
@@ -211,7 +219,7 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
                                                  'ordered-input': extract_ordered_input,
                                                  'sentence-segmented-input': extract_sentence_segmented_input,
                                                  'lexicalisation': extract_lexicalization,
-                                                 'referring-expressions': extract_reg_completed_lex_random,
+                                                 'referring-expressions': extract_reg_in_lex,
                                                  'raw-output': extract_raw_output})
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
