@@ -69,3 +69,8 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
                 num_entries_per_layer[layer] += 1
         for layer in layer_stats:
             print(f"{layer}:\t\t{layer_stats[layer] / num_entries_per_layer[layer]} ({num_entries_per_layer[layer]})")
+
+    def print_sample(self, range_start=0, range_end=10):
+        for item in self[range_start:range_end]:
+            for layer in item.layers:
+                print(" ".join(item[layer]))
