@@ -1,6 +1,8 @@
 from collections import defaultdict
 from typing import Any, Callable, Dict, Iterable, List, Optional, TypeVar, Union
 
+import random
+
 import enunlg.data_management.iocorpus
 
 
@@ -26,6 +28,11 @@ class PipelineItem(object):
     def __repr__(self):
         attr_string = ", ".join([f"{layer}={str(self[layer])}" for layer in self.layers])
         return f"{self.__class__.__name__}({attr_string})"
+
+    def print_layers(self):
+        for layer in self.layers:
+            layer_content = " ".join(self[layer])
+            print(f"{layer}|\t{layer_content}")
 
 
 AnyPipelineItemSubclass = TypeVar("AnyPipelineItemSubclass", bound=PipelineItem)
@@ -70,7 +77,16 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
         for layer in layer_stats:
             print(f"{layer}:\t\t{layer_stats[layer] / num_entries_per_layer[layer]} ({num_entries_per_layer[layer]})")
 
-    def print_sample(self, range_start=0, range_end=10):
-        for item in self[range_start:range_end]:
-            for layer in item.layers:
-                print(" ".join(item[layer]))
+    def print_sample(self, range_start=0, range_end=10, subsample=None):
+        if random is None:
+            for item in self[range_start:range_end]:
+                item.print_layers()
+                print("----")
+        elif isinstance(subsample, int):
+            for item in random.choices(self[range_start:range_end], k=subsample):
+                item.print_layers()
+                print("----")
+        else:
+            raise ValueError("`random` must be None or an integer")
+
+
