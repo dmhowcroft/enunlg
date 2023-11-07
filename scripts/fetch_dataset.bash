@@ -31,7 +31,10 @@ function fetch_dataset {
     e2e-cleaned)
       git clone git@github.com:tuetschek/e2e-cleaning.git ;;
     e2e-enriched)
-      git clone git@github.com:ThiagoCF05/EnrichedE2E.git ;;
+      if [ ! -d EnrichedE2E ]
+      then
+        git clone git@github.com:ThiagoCF05/EnrichedE2E.git
+      fi;;
     neural-methodius)
       git clone git@github.com:aleksadre/methodiusNeuralINLG2021 ;;
     webnlg2023)
@@ -40,6 +43,18 @@ function fetch_dataset {
       git clone git@github.com:ThiagoCF05/webnlg.git ;;
   esac
 }
+
+
+function process_dataset {
+  case $1 in
+    e2e-enriched)
+      cp -rf datasets/raw/EnrichedE2E datasets/processed/.
+      # Fix errors  in corpus annotation
+      # TODO check usage of __s__
+      sed -i -e 's/__CUSTOMER___ RATING/__CUSTOMER_RATING__/g' -e 's/__CUSTOMER___ __RATING\([a-z\-]*\)__/__CUSTOMER_RATING__ \1/g' -e 's/ CUSTOMER_RATING //g' -e 's/\([ .]\)__ /\1/g' -e 's/__ @ FAMILYFRIENDLY /__ @ __FAMILYFRIENDLY__ /g' -e 's/<text>The Wrestlers is \(a decent\|an average\) \(family-\|child \)friendly \(place\|venue\).</<text>The Wrestlers is \1 @ \2friendly \3.</g' -e 's/Not family friendly Alimentum/Not family friendly @ Alimentum/g' -e 's/high-priced kids-friendly/high-priced @ kids-friendly/g' -e "s/Its a /It's a /g" -e "s/ __NAME__s / __NAME__ 's /g" -e "s/ __s__ / /g" -e 's/verage family friendly/verage @ family friendly/g' -e 's/ it high/ it @ high/g' -e 's/__..but/but/g' -e 's/\.\.\.but/, but/g' -e 's/for children it/for children @ it/g' -e 's/__CUSTOMER_RATING__and/__CUSTOMER_RATING__ and/g' -e 's/5and/5 and/g' datasets/processed/EnrichedE2E/*/*.xml
+  esac
+}
+
 
 function usage {
     echo "Usage:    ./fetch_dataset.bash DATASET"
@@ -60,12 +75,17 @@ DATASET=$1
 
 if [ -v SUPPORTED_DATASETS["${DATASET}"] ]
 then
+  INITIAL_WD=$(pwd)
   echo "Fetching ${DATASET}..."
   mkdir -p datasets/raw
   cd datasets/raw || exit
   pwd
   fetch_dataset "${DATASET}"
-  cd -
+  cd ${INITIAL_WD} || exit
+  pwd
+  echo "Postprocessing ${DATASET}"
+  mkdir -p datasets/processed
+  process_dataset "${DATASET}"
 else
     echo ""
     echo "ERROR: No rule for fetching ${DATASET}"
