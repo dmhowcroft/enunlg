@@ -117,6 +117,19 @@ class PipelineSeq2SeqGenerator(object):
         return curr_output
 
 
+def predict(model, mr):
+    # TODO we will need to add padding to the output of each layer before it can be used as input for the next
+    curr_input = mr
+    for layer_pair in model.modules:
+        print(f"Mapping from {layer_pair[0]} to {layer_pair[1]}.")
+        print(" ".join(model.vocabularies[layer_pair[0]].get_tokens(curr_input.tolist())))
+        curr_output = model.modules[layer_pair].generate(curr_input, max_length=model.max_length_any_layer)
+        print(" ".join(model.vocabularies[layer_pair[1]].get_tokens(curr_output)))
+        padded_output = [model.vocabularies[layer_pair[0]].padding_token_int] * (model.max_length_any_layer - len(curr_output) + 2) + curr_output
+        curr_input = torch.tensor(padded_output)
+    return curr_output
+
+
 def sanitize_slot_names(slot_name):
     return slot_name
 
@@ -153,21 +166,21 @@ if __name__ == "__main__":
                                'selected_input': linearize_slot_value_mr,
                                'ordered_input': linearize_slot_value_mr,
                                'sentence_segmented_input': linearize_slot_value_mr_seq,
-                               'lexicalisation': lambda x: x.strip().split(),
-                               'referring_expressions': lambda x: x.strip().split(),
-                               'raw_output': lambda x: x.strip().split()}
+                               'lexicalisation': lambda lex_string: lex_string.strip().split(),
+                               'referring_expressions': lambda reg_string: reg_string.strip().split(),
+                               'raw_output': lambda text: text.strip().split()}
 
     corpus.print_summary_stats()
     print("____________")
     text_corpus = TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
     text_corpus.print_summary_stats()
-    text_corpus.print_sample(0, 5)
+    text_corpus.print_sample(0, 100, 10)
 
-    psg = PipelineSeq2SeqGenerator(corpus)
-    mr_input_vocab = psg.vocabularies["raw_input"]
-    for entry in corpus[:10]:
-        mr = entry.raw_input
-        print(mr)
-        output_seq = psg.predict(torch.tensor(mr_input_vocab.get_ints_with_left_padding(mr, psg.max_length_any_layer), dtype=torch.long))
-        print(psg.vocabularies['raw_output'].get_tokens(output_seq))
-        print("----")
+    # psg = PipelineSeq2SeqGenerator(corpus)
+    # mr_input_vocab = psg.vocabularies["raw_input"]
+    # for entry in corpus[:10]:
+    #     mr = entry.raw_input
+    #     print(mr)
+    #     output_seq = psg.predict(torch.tensor(mr_input_vocab.get_ints_with_left_padding(mr, psg.max_length_any_layer), dtype=torch.long))
+    #     print(psg.vocabularies['raw_output'].get_tokens(output_seq))
+    #     print("----")
