@@ -16,7 +16,7 @@ import enunlg.data_management.pipelinecorpus
 
 # TODO add hydra configuration for enriched e2e stuff
 ENRICHED_E2E_CONFIG = omegaconf.DictConfig({'ENRICHED_E2E_DIR': os.path.join(os.path.dirname(__file__),
-                                                                             '../../datasets/raw/EnrichedE2E/')})
+                                                                             '../../datasets/processed/EnrichedE2E/')})
 
 E2E_SPLIT_DIRS = ('train', 'dev', 'test')
 
@@ -30,20 +30,28 @@ def extract_reg_from_template_and_text(text: str, template: str) -> MutableMappi
     diff = DIFFER.compare(text.strip().split(), template.strip().split())
     keys = []
     values = []
-    curr_add = []
-    curr_min = []
-    for x in diff:
-        if x.startswith('-'):
-            curr_min.append(x.split()[1])
-        elif x.startswith('+'):
-            curr_add.append(x.split()[1])
+    curr_key = []
+    curr_value = []
+    for line in diff:
+        # print(line)
+        if line.startswith('-'):
+            curr_value.append(line.split()[1])
+        elif line.startswith('+'):
+            token = line.split()[1]
+            curr_key.append(token)
+
         else:
-            if curr_min:
-                values.append("".join(curr_min))
-                curr_min = []
-            if curr_add:
-                keys.append("".join(curr_add))
-                curr_add = []
+            if curr_value:
+                values.append(" ".join(curr_value))
+                curr_value = []
+            if curr_key:
+                keys.append(" ".join(curr_key))
+                curr_key = []
+    # Add the last key & value to the dict if we have some
+    if curr_value:
+        values.append(" ".join(curr_value))
+    if curr_key:
+        keys.append(" ".join(curr_key))
     result_dict = defaultdict(list)
     for key, value in zip(keys, values):
         result_dict[key].append(value)
@@ -170,12 +178,41 @@ def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
         curr_text_idx = 0
         for lex_token in lex.split():
             if lex_token.startswith("__"):
+                # print(f"looking for {lex_token}")
                 possible_targets = reg_dict[lex_token]
-                for text_idx, text_token in enumerate(text.split()[curr_text_idx:]):
-                    if text_token in possible_targets:
-                        new_lex.append(text_token)
-                        curr_text_idx += text_idx
+                match_found = False
+                curr_rest = text.split()[curr_text_idx:]
+                for possible_target in possible_targets:
+                    target_tokens = tuple(possible_target.split())
+                    num_tokens = len(target_tokens)
+                    # print(target_tokens)
+                    # print(curr_rest)
+                    if num_tokens == 1:
+                        for text_idx, text_token in enumerate(curr_rest):
+                            if text_token in possible_targets:
+                                new_lex.append(text_token)
+                                curr_text_idx += text_idx
+                                match_found = True
+                                break
+                    elif num_tokens > 1:
+                        parts = []
+                        for i in range(len(target_tokens)):
+                            parts.append(curr_rest[i:])
+                        for start_idx, token_tuple in enumerate(zip(*parts)):
+                            # print(token_tuple)
+                            if token_tuple == target_tokens:
+                                new_lex.extend(target_tokens)
+                                curr_text_idx += start_idx + len(target_tokens)
+                                match_found = True
+                                break
+                    else:
+                        raise ValueError("Must have possible targets for each slot!")
+                    if match_found:
                         break
+                if not match_found:
+                    print(f"could not find: {lex_token}")
+                    new_lex.append(lex_token)
+                    # raise ValueError(f"Could not create reg_lex text for {lex_token} in:\n{text}\n{template}\n{lex}\n{reg_dict}")
             else:
                 new_lex.append(lex_token)
         reg_lexes.append(" ".join(new_lex))
@@ -213,6 +250,11 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
                        'directory': data_directory}
     logging.info(len(corpus))
 
+    # tokenize texts
+    from enunlg.normalisation.tokenisation import TGenTokeniser
+    for entry in corpus:
+        for target in entry.targets:
+            target.text = TGenTokeniser.tokenise(target.text)
     enriched_e2e_factory = PipelineCorpusMapper(EnrichedE2ECorpusRaw, EnrichedE2EItem,
                                                 {'raw-input': lambda entry: extract_raw_input(entry),
                                                  'selected-input': extract_selected_input,
