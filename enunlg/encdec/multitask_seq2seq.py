@@ -58,10 +58,13 @@ class MultitaskLSTMEncoder(s2s.BasicLSTMEncoder):
 
 
 class MultiDecoderSeq2SeqAttn(torch.nn.Module):
-    def __init__(self, layer_names, layer_vocab_sizes, model_config):
+    def __init__(self, layer_names: List[str], layer_vocab_sizes: List[int], model_config: omegaconf.DictConfig):
         """
-        :param input_vocab:
-        :param output_vocab:
+        We have len(layer_names) - 1 LSTM layers in the Encoder and the same number of tasks for our  decoder.
+        The last layer is the output layer, and the first is the input, each intermediate layer is a different pipeline NLG task.
+
+        :param layer_names: names for each of the annotation layers (in order from input to output)
+        :param layer_vocab_sizes:
         :param model_config:
         """
         super().__init__()
@@ -96,6 +99,29 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
         # enc_outputs, enc_h_c_state
         return self.encoder(enc_emb, enc_h_c_state)
 
+    def forward_multitask(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor, teacher_forcing: float = 0.0, teacher_forcing_sync_layers: bool = True):
+        """
+        Do a forward pass generating from enc_emb using the targets in dec_emb as oracle values during decoding.
+        If  teacher_forcing > 0, then dec_emb targets will be used as oracles only `teacher_forcing` proportion of the time.
+        If teacher_forcing_sync_layers is True, then the teacher_forcing decision is made once for all layers (as opposed to being sampled for each layer).
+
+        :param enc_emb:
+        :param dec_emb:
+        :param teacher_forcing:
+        :param teacher_forcing_sync_layers:
+        """
+        enc_outputs, enc_h_c_state = self.encode(enc_emb)
+        print(enc_outputs.size())
+        print(enc_h_c_state.size())
+
+    def forward_e2e(self, enc_emb: torch.Tensor, max_output_length: int = 100):
+        """
+        Do a forward pass generating from enc_emb, with output length up to `max_output_length` tokens.
+
+        :param enc_emb:
+        :param max_output_length: default is 100 based on Enriched E2E corpus having max layer length 97.
+        """
+
     def forward(self, enc_emb: torch.Tensor, max_output_length: int = 50):
         enc_outputs, enc_h_c_state = self.encode(enc_emb)
 
@@ -128,56 +154,7 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
         return dec_outputs
 
     def train_step(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor, optimizer, criterion):
-        optimizer.zero_grad()
-
-        dec_outputs = self.forward_with_teacher_forcing(enc_emb, dec_emb)
-
-        # We should be able to vectorise the following
-        dec_targets = torch.tensor([x.unsqueeze(0) for x in dec_emb])
-        loss = criterion(dec_outputs, dec_targets)
-
-        loss.backward()
-        optimizer.step()
-        # mean loss per word returned in order for losses for sents of diff lengths to be comparable
-        return loss.item() / dec_emb.size(0)
+        raise NotImplementedError
 
     def generate(self, enc_emb, max_length=50):
-        return self.generate_greedy(enc_emb, max_length)
-
-    def generate_beam(self, enc_emb, max_length=50, beam_size=10, num_expansions: Optional[int] = None):
-        if num_expansions is None:
-            num_expansions = beam_size
-        with torch.no_grad():
-            enc_outputs, enc_h_c_state = self.encode(enc_emb)
-
-            dec_h_c_state: torch.Tensor = enc_h_c_state
-            prev_beam: List[Tuple[float, Tuple[int, ...], torch.Tensor]] = [(0.0, (1, ), dec_h_c_state)]
-
-            for dec_index in range(max_length - 1):
-                curr_beam = []
-                for prev_beam_prob, prev_beam_item, prev_beam_hidden_state in prev_beam:
-                    prev_item_index = prev_beam_item[-1]
-                    if prev_item_index in (2, 0):
-                        curr_beam.append((prev_beam_prob, prev_beam_item, prev_beam_hidden_state))
-                    else:
-                        dec_input = torch.tensor([[prev_item_index]])
-                        dec_output, dec_h_c_state = self.decoder.forward(dec_input, prev_beam_hidden_state, enc_outputs)
-                        top_values, top_indices = dec_output.data.topk(num_expansions)
-
-                        for prob, candidate in zip(top_values, top_indices):
-                            curr_beam.append((prev_beam_prob + float(prob), prev_beam_item + (int(candidate), ), dec_h_c_state))
-                prev_beam = []
-                prev_beam_set = set()
-                # print(len(curr_beam))
-                for prob, item, hidden in curr_beam:
-                    if (prob, item) not in prev_beam_set:
-                        prev_beam_set.add((prob, item))
-                        prev_beam.append((prob, item, hidden))
-                # print(len(prev_beam))
-                prev_beam = sorted(prev_beam, key=lambda x: x[0] / len(x[1]), reverse=True)[:beam_size]
-                # print(len(prev_beam))
-            return [(prob/len(seq), seq) for prob, seq, _ in prev_beam]
-
-    def generate_greedy(self, enc_emb: torch.Tensor, max_length=50):
-        with torch.no_grad():
-            return self.forward(enc_emb, max_length)
+        raise NotImplementedError()
