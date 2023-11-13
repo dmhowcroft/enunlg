@@ -8,6 +8,9 @@ import torch
 
 logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
+from enunlg.data_management.enriched_e2e import linearize_slot_value_mr, linearize_slot_value_mr_seq
+from enunlg.data_management.pipelinecorpus import TextPipelineCorpus
+
 import enunlg.data_management.enriched_e2e as ee2e
 import enunlg.data_management.pipelinecorpus
 import enunlg.encdec.seq2seq as s2s
@@ -16,34 +19,13 @@ import enunlg.trainer
 import enunlg.vocabulary
 
 
-class TextPipelineCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
-    pass
-
-    @classmethod
-    def from_existing(cls, corpus: enunlg.data_management.pipelinecorpus.PipelineCorpus, mapping_functions):
-        out_corpus = TextPipelineCorpus(corpus)
-        for item in out_corpus:
-            for layer in item.layers:
-                item[layer] = mapping_functions[layer](item[layer])
-        return out_corpus
-
-
-def max_length_any_input_layer(corpus):
-    max_length = -1
-    for item in corpus:
-        for layer in item.layers:
-            if len(item[layer]) > max_length:
-                logging.debug(f"New longest field, this time a {layer}")
-                logging.debug(item[layer])
-                max_length = len(item[layer])
-    return max_length
 
 
 class PipelineSeq2SeqGenerator(object):
-    def __init__(self, corpus: ee2e.EnrichedE2ECorpus):
+    def __init__(self, corpus: TextPipelineCorpus):
         self.layers = corpus.layers
         self.pipeline = corpus.layer_pairs
-        self.max_length_any_layer = max_length_any_input_layer(corpus)
+        self.max_length_any_layer = corpus.max_layer_length
         logging.debug(f"{self.max_length_any_layer=}")
         self.modules = {layer_pair: None for layer_pair in self.pipeline}
         self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: None for layer in self.layers} # type: ignore[misc]
@@ -128,32 +110,6 @@ def predict(model, mr):
         padded_output = [model.vocabularies[layer_pair[0]].padding_token_int] * (model.max_length_any_layer - len(curr_output) + 2) + curr_output
         curr_input = torch.tensor(padded_output)
     return curr_output
-
-
-def sanitize_slot_names(slot_name):
-    return slot_name
-
-
-def sanitize_values(value):
-    return value.replace(" ", "_").replace("'", "_")
-
-
-def linearize_slot_value_mr(mr: enunlg.meaning_representation.slot_value.SlotValueMR):
-    tokens = ["<MR>"]
-    for slot in mr:
-        tokens.append(sanitize_slot_names(slot))
-        tokens.append(sanitize_values(mr[slot]))
-        tokens.append("<PAIR_SEP>")
-    tokens.append("</MR>")
-    return tokens
-
-
-def linearize_slot_value_mr_seq(mrs):
-    tokens = ["<SENTENCE>"]
-    for mr in mrs:
-        tokens.extend(linearize_slot_value_mr(mr))
-        tokens.append("</SENTENCE>")
-    return tokens
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Any, Callable, Dict, Iterable, List, Optional, TypeVar, Union
 
+import logging
 import random
 
 import enunlg.data_management.iocorpus
@@ -90,3 +91,29 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
             raise ValueError("`random` must be None or an integer")
 
 
+class TextPipelineCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
+    def __init__(self, seq: Optional[List[AnyPipelineItemSubclass]] = None, metadata: Optional[dict] = None):
+        super(TextPipelineCorpus, self).__init__(seq, metadata)
+        self._max_layer_length = -1
+        self._layer_lengths = {layer_name: -1 for layer_name in self.layers}
+
+    @classmethod
+    def from_existing(cls, corpus: enunlg.data_management.pipelinecorpus.PipelineCorpus, mapping_functions):
+        out_corpus = TextPipelineCorpus(corpus)
+        for item in out_corpus:
+            for layer in item.layers:
+                item[layer] = mapping_functions[layer](item[layer])
+        return out_corpus
+
+    @property
+    def max_layer_length(self):
+        if self._max_layer_length == -1:
+            for item in self:
+                for layer in item.layers:
+                    if len(item[layer]) > self._max_layer_length:
+                        logging.debug(f"New longest field, this time a {layer}")
+                        logging.debug(item[layer])
+                        self._max_layer_length = len(item[layer])
+                    if len(item[layer]) > self._layer_lengths[layer]:
+                        self._layer_lengths[layer] = len(item[layer])
+        return self._max_layer_length

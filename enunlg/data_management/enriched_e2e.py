@@ -5,7 +5,6 @@ from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
 import difflib
 import logging
 import os
-import random
 
 import omegaconf
 import xsdata.formats.dataclass.parsers as xsparsers
@@ -268,3 +267,29 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
     corpus: EnrichedE2ECorpus = EnrichedE2ECorpus(enriched_e2e_factory(corpus))
     logging.info(f"Corpus contains {len(corpus)} entries.")
     return corpus
+
+
+def sanitize_values(value):
+    return value.replace(" ", "_").replace("'", "_")
+
+
+def sanitize_slot_names(slot_name):
+    return slot_name
+
+
+def linearize_slot_value_mr(mr: enunlg.meaning_representation.slot_value.SlotValueMR):
+    tokens = ["<MR>"]
+    for slot in mr:
+        tokens.append(sanitize_slot_names(slot))
+        tokens.append(sanitize_values(mr[slot]))
+        tokens.append("<PAIR_SEP>")
+    tokens.append("</MR>")
+    return tokens
+
+
+def linearize_slot_value_mr_seq(mrs):
+    tokens = ["<SENTENCE>"]
+    for mr in mrs:
+        tokens.extend(linearize_slot_value_mr(mr))
+        tokens.append("</SENTENCE>")
+    return tokens
