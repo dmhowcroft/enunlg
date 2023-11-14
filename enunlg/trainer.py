@@ -337,13 +337,8 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         best_outputs = []
         ref_outputs = []
         for in_indices, out_indices in validation_pairs:
-            # logging.info(f"Input:  {self.model.input_vocab.pretty_string(in_indices.tolist())}")
-            # logging.info(f"Greedy: {self.model.output_vocab.pretty_string(self.model.generate_greedy(in_indices))}")
-            # TGen does beam_size 10 and sets expansion size to be the same
-            # (See TGen config.yaml line 35 and seq2seq.py line 219 `new_paths.extend(path.expand(self.beam_size, out_probs, st))`)
             curr_outputs = self.model.generate(in_indices)
-            # The best output is the first one in the list, and the list contains pairs of length normalised logprobs along with the output indices
-            best_outputs.append(self.output_vocab.pretty_string(curr_outputs[0]))
+            best_outputs.append(self.output_vocab.pretty_string(curr_outputs))
             ref_outputs.append(self.output_vocab.pretty_string(out_indices.tolist()))
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
