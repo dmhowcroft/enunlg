@@ -28,8 +28,7 @@ class MultitaskSeq2SeqGenerator(object):
 
         :param corpus:
         """
-        self.layers: List[str] = corpus.layers
-        self.pipeline = corpus.layer_pairs
+        self.layers: List[str] = corpus.annotation_layers
         self.max_length_any_layer = corpus.max_layer_length
         logging.debug(f"{self.max_length_any_layer=}")
         self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: enunlg.vocabulary.TokenVocabulary(corpus.items_by_layer(layer)) for layer in self.layers} # type: ignore[misc]

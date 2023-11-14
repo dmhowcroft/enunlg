@@ -9,7 +9,7 @@ import enunlg.templates.lookup as lug
 
 class PipelineLookupGenerator(object):
     def __init__(self, corpus: ee2e.EnrichedE2ECorpus):
-        self.layers = corpus.layers
+        self.layers = corpus.annotation_layers
         self.pipeline = corpus.layer_pairs
         self.modules = {layer_pair: lug.OneToManyLookupGenerator() for layer_pair in self.pipeline}
         for layer_pair in self.modules:

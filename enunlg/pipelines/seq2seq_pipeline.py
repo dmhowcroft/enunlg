@@ -23,7 +23,7 @@ import enunlg.vocabulary
 
 class PipelineSeq2SeqGenerator(object):
     def __init__(self, corpus: TextPipelineCorpus):
-        self.layers = corpus.layers
+        self.layers = corpus.annotation_layers
         self.pipeline = corpus.layer_pairs
         self.max_length_any_layer = corpus.max_layer_length
         logging.debug(f"{self.max_length_any_layer=}")
