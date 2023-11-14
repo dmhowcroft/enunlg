@@ -261,8 +261,8 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
                  output_vocab=None):
         if training_config is None:
             # Set defaults
-            training_config = omegaconf.DictConfig({"num_epochs": 4,
-                                                    "record_interval": 412,
+            training_config = omegaconf.DictConfig({"num_epochs": 20,
+                                                    "record_interval": 0.1,
                                                     "shuffle": True,
                                                     "batch_size": 1,
                                                     "optimizer": "adam",
