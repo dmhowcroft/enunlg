@@ -11,6 +11,8 @@ import xsdata.formats.dataclass.parsers as xsparsers
 
 from enunlg.formats.xml.enriched_e2e import EnrichedE2EEntries, EnrichedE2EEntry
 from enunlg.meaning_representation.slot_value import SlotValueMR
+from enunlg.normalisation.tokenisation import TGenTokeniser
+
 import enunlg.data_management.pipelinecorpus
 
 # TODO add hydra configuration for enriched e2e stuff
@@ -111,8 +113,8 @@ class PipelineCorpusMapper(object):
 
 
 class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
-    def __init__(self, layers):
-        super().__init__(layers)
+    def __init__(self, annotation_layers):
+        super().__init__(annotation_layers)
 
 
 class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
@@ -231,7 +233,7 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
     """
     if enriched_e2e_config is None:
         enriched_e2e_config = ENRICHED_E2E_CONFIG
-    corpus_name = "E2E Challenge Corpus"
+    corpus_name = "Enriched E2E Challenge Corpus"
     default_splits = E2E_SPLIT_DIRS
     data_directory = enriched_e2e_config.ENRICHED_E2E_DIR
     if splits is None:
@@ -250,7 +252,6 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
     logging.info(len(corpus))
 
     # tokenize texts
-    from enunlg.normalisation.tokenisation import TGenTokeniser
     for entry in corpus:
         for target in entry.targets:
             target.text = TGenTokeniser.tokenise(target.text)
