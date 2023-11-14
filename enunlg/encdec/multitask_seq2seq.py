@@ -169,10 +169,16 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
         optimizer.zero_grad()
 
         dec_outputs = self.forward_multitask(enc_emb, dec_emb)
+        logging.debug(f"{len(dec_outputs)=}")
+        for task in dec_outputs:
+            logging.debug(f"{task.size()}")
 
         dec_targets = []
         for task in dec_emb:
             dec_targets.append(torch.tensor([x.unsqueeze(0) for x in task]))
+        logging.debug(f"{len(dec_targets)=}")
+        for task in dec_targets:
+            logging.debug(f"{task.size()}")
 
         if stage == 'final':
             loss = criterion(dec_outputs[-1], dec_targets[-1])
