@@ -301,6 +301,12 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         loss_this_interval = 0
         loss_to_plot = []
 
+        # Add handling for proportional recording intervals
+        if 0 < self.record_interval < 1:
+            record_interval = int(self.record_interval * len(pairs))
+        else:
+            record_interval = self.record_interval
+
         stages = ['final', 'initial', 'weighted', 'all_balanced']
         for epoch in range(self.epochs):
             logging.info(f"Beginning epoch {epoch}...")
@@ -311,8 +317,8 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
             for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
                 loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss, stage)
                 loss_this_interval += loss
-                if index % self.record_interval == 0:
-                    avg_loss = loss_this_interval / self.record_interval
+                if index % record_interval == 0:
+                    avg_loss = loss_this_interval / record_interval
                     loss_this_interval = 0
                     logging.info("------------------------------------")
                     logging.info(f"{index} iteration mean loss = {avg_loss}")
