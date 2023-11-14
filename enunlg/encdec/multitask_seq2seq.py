@@ -84,6 +84,7 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
             self.task_decoders[name] = s2s.LSTMDecWithAttention(self.config[f"decoder_{name}"].num_hidden_dims,
                                                                 self.layer_vocab_sizes[idx+1],
                                                                 self.config.max_input_length,
+                                                                self.config[f'decoder_{name}'].embeddings.embedding_dim,
                                                                 padding_idx=self.config[f"decoder_{name}"].embeddings.get('padding_idx'),
                                                                 start_token_idx=self.config[f"decoder_{name}"].embeddings.get('start_idx'),
                                                                 stop_token_idx=self.config[f"decoder_{name}"].embeddings.get('stop_idx'))
