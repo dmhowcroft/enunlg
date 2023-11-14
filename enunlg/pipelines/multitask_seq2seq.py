@@ -1,7 +1,7 @@
 from typing import Dict, List
 
 import logging
-logging.basicConfig(encoding='utf-8', level=logging.INFO)
+logging.basicConfig(encoding='utf-8', level=logging.INFO, format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s")
 
 import omegaconf
 import torch
@@ -40,7 +40,7 @@ class MultitaskSeq2SeqGenerator(object):
 
         # Initialize the NN model
         if model_config is None:
-            model_config = omegaconf.DictConfig({"name": "seq2seq+attn",
+            model_config = omegaconf.DictConfig({"name": "multitask_seq2seq+attn",
                                                  "max_input_length": self.max_length_any_layer,
                                                  "encoder": {"embeddings": {"type": "torch",
                                                                             "embedding_dim": 50,
@@ -76,46 +76,12 @@ class MultitaskSeq2SeqGenerator(object):
     def model_config(self):
         return self.model.config
 
-    def initialize_seq2seq_modules(self, corpus):
-        # Define a default model config; we'll improve this later
-        # TODO make the model config different for each pair of IO-layers
-        training_config = omegaconf.DictConfig({"num_epochs": 20,
-                                                "record_interval": 410,
-                                                "shuffle": True,
-                                                "batch_size": 1,
-                                                "optimizer": "adam",
-                                                "learning_rate": 0.001,
-                                                "learning_rate_decay": 0.5
-        })
-        for layer_pair in self.modules:
-            in_layer, out_layer = layer_pair
-            self.modules[layer_pair] = s2s.Seq2SeqAttn(self.vocabularies[in_layer].size,
-                                                       self.vocabularies[out_layer].size,
-                                                       model_config=multidecoder_model_config)
-            trainer = enunlg.trainer.Seq2SeqAttnTrainer(self.modules[layer_pair],
-                                                        training_config=training_config,
-                                                        input_vocab=self.vocabularies[in_layer],
-                                                        output_vocab=self.vocabularies[out_layer])
-            corpus_pairs = [(x[0], x[1]) for x in zip(self.input_embeddings[in_layer], self.output_embeddings[out_layer])]
-            idx_for_90_percent_split = int(len(corpus_pairs) * 0.9)
-            trainer.train_iterations(corpus_pairs[:idx_for_90_percent_split],
-                                     validation_pairs=corpus_pairs[idx_for_90_percent_split:])
-
     def predict(self, mr):
-        # TODO we will need to add padding to the output of each layer before it can be used as input for the next
-        curr_input = mr
-        for layer_pair in self.modules:
-            logging.debug(layer_pair)
-            logging.debug(curr_input)
-            curr_output = self.modules[layer_pair].generate(curr_input, max_length=self.max_length_any_layer)
-            logging.debug(curr_output)
-            padded_output = [self.vocabularies[layer_pair[0]].padding_token_int] * (self.max_length_any_layer - len(curr_output) + 2) + curr_output
-            curr_input = torch.tensor(padded_output)
-        return curr_output
+        return self.model.generate(mr)
 
 
 if __name__ == "__main__":
-    ee2e_corpus = ee2e.load_enriched_e2e(splits=("dev",))
+    ee2e_corpus = ee2e.load_enriched_e2e(splits=("train",))
     for x in ee2e_corpus[:6]:
         print(x)
 
@@ -141,14 +107,15 @@ if __name__ == "__main__":
 
     trainer = MultiDecoderSeq2SeqAttnTrainer(psg.model, None, input_vocab=psg.vocabularies["raw_input"], output_vocab=psg.vocabularies["raw_output"])
 
-    nine_to_one_split_idx = int(len(text_corpus))
     task_embeddings = []
     for idx in range(len(psg.input_embeddings)):
         task_embeddings.append([psg.output_embeddings[layer][idx] for layer in psg.decoder_target_layer_names])
+
     multitask_training_pairs = list(zip(psg.input_embeddings, task_embeddings))
-    print(multitask_training_pairs[0])
-    print(len(multitask_training_pairs))
-    trainer.train_iterations(multitask_training_pairs)  # [:nine_to_one_split_idx], multitask_training_pairs[nine_to_one_split_idx:])
+    print(f"{multitask_training_pairs[0]=}")
+    print(f"{len(multitask_training_pairs)=}")
+    nine_to_one_split_idx = int(len(multitask_training_pairs) * 0.9)
+    trainer.train_iterations(multitask_training_pairs[:nine_to_one_split_idx], multitask_training_pairs[nine_to_one_split_idx:])
 
     # for entry in text_corpus[:10]:
     #     mr = entry.raw_input
