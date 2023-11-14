@@ -35,11 +35,11 @@ class MultitaskLSTMEncoder(s2s.BasicLSTMEncoder):
         else:
             self._hidden_state_init_func = lambda *args: torch.randn(*args)/torch.sqrt(torch.Tensor([self.num_hidden_dims]))
 
-    def forward(self, input_indices, h_c_state):
+    def forward(self, input_indices, init_h_c_state):
         # This assumes batch first and batch size = 1
         embedded = self.embedding(input_indices).view(1, len(input_indices), -1)
         outputs, h_c_state = [], []
-        layer_outputs, layer_h_c_state = self.lstm(embedded, h_c_state)
+        layer_outputs, layer_h_c_state = self.lstm(embedded, init_h_c_state)
         outputs.append(layer_outputs)
         h_c_state.append(layer_h_c_state)
         for task in self.task_names[1:]:
@@ -75,7 +75,7 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
         self.layer_vocab_sizes = layer_vocab_sizes
 
         # Initialize encoder and decoder networks
-        self.encoder = MultitaskLSTMEncoder(self.input_vocab_size,
+        self.encoder = MultitaskLSTMEncoder(self.layer_vocab_sizes[0],
                                             self.config.encoder.embeddings.embedding_dim,
                                             self.config.encoder.num_hidden_dims,
                                             self.layer_names[1:])
@@ -110,9 +110,33 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
         :param teacher_forcing:
         :param teacher_forcing_sync_layers:
         """
-        enc_outputs, enc_h_c_state = self.encode(enc_emb)
-        print(enc_outputs.size())
-        print(enc_h_c_state.size())
+        logging.debug(enc_emb.size())
+        enc_outputs, enc_h_c_states = self.encode(enc_emb)
+        logging.debug(f"{len(enc_outputs)=}")
+        for x in enc_outputs:
+            logging.debug(x.size())
+        logging.debug(f"{len(enc_h_c_states)=}")
+        for x in enc_h_c_states:
+            logging.debug(x[0].size(), x[1].size())
+
+        logging.debug(f"{len(dec_emb)=}")
+        for x in dec_emb:
+            logging.debug(x.size())
+
+        outputs = []
+        for idx, (layer_name, enc_output, enc_h_c_state, layer_dec_emb) in enumerate(zip(self.layer_names[1:], enc_outputs, enc_h_c_states, dec_emb), 1):
+            dec_h_c_state = enc_h_c_state
+            # Use torch.zeros because we use padding_idx = 0
+            dec_outputs = torch.zeros((len(layer_dec_emb), self.layer_vocab_sizes[idx]))
+            # the first element of dec_emb is the start token
+            dec_outputs[0] = layer_dec_emb[0]
+            # That's also why we skip the first element in our loop
+            # TODO make the above comment make sense O.o
+            for dec_input_index, dec_input in enumerate(layer_dec_emb[:-1]):
+                dec_output, dec_h_c_state = self.task_decoders[layer_name](dec_input, dec_h_c_state, enc_output)
+                dec_outputs[dec_input_index + 1] = dec_output
+            outputs.append(dec_outputs)
+        return outputs
 
     def forward_e2e(self, enc_emb: torch.Tensor, max_output_length: int = 100):
         """
@@ -121,40 +145,58 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
         :param enc_emb:
         :param max_output_length: default is 100 based on Enriched E2E corpus having max layer length 97.
         """
+        enc_outputs, enc_h_c_states = self.encode(enc_emb)
 
-    def forward(self, enc_emb: torch.Tensor, max_output_length: int = 50):
-        enc_outputs, enc_h_c_state = self.encode(enc_emb)
-
+        idx = len(self.layer_names) - 1
+        layer_name = self.layer_names[idx]
+        enc_output = enc_outputs[-1]
+        enc_h_c_state = enc_h_c_states[-1]
         dec_h_c_state = enc_h_c_state
-        dec_input = torch.tensor([[self.decoder.start_idx]], device=DEVICE)
-        dec_outputs = [self.decoder.start_idx]
+        dec_input = torch.tensor([[self.task_decoders[layer_name].start_idx]], device=DEVICE)
 
+        dec_outputs = []
         # run multiple decoders, one for each task
         for dec_index in range(max_output_length):
-            dec_output, dec_h_c_state = self.decoder(dec_input, dec_h_c_state, enc_outputs)
+            dec_output, dec_h_c_state = self.task_decoders[layer_name](dec_input, dec_h_c_state, enc_output)
             topv, topi = dec_output.data.topk(1)
             dec_outputs.append(topi.item())
-            if topi.item() == self.decoder.stop_idx:
+            if topi.item() == self.task_decoders[layer_name].stop_idx:
                 break
             dec_input = topi.squeeze().detach()
         return dec_outputs
 
-    def forward_with_teacher_forcing(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor) -> torch.Tensor:
-        enc_outputs, enc_h_c_state = self.encode(enc_emb)
+    def train_step(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor, optimizer, criterion, stage='final'):
+        optimizer.zero_grad()
 
-        dec_h_c_state = enc_h_c_state
-        # Use torch.zeros because we use padding_idx = 0
-        dec_outputs = torch.zeros((len(dec_emb), self.output_vocab_size))
-        # the first element of dec_emb is the start token
-        dec_outputs[0] = dec_emb[0]
-        # That's also why we skip the first element in our loop
-        for dec_input_index, dec_input in enumerate(dec_emb[:-1]):
-            dec_output, dec_h_c_state = self.decoder(dec_input, dec_h_c_state, enc_outputs)
-            dec_outputs[dec_input_index+1] = dec_output
-        return dec_outputs
+        dec_outputs = self.forward_multitask(enc_emb, dec_emb)
 
-    def train_step(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor, optimizer, criterion):
-        raise NotImplementedError
+        dec_targets = []
+        for task in dec_emb:
+            dec_targets.append(torch.tensor([x.unsqueeze(0) for x in task]))
 
-    def generate(self, enc_emb, max_length=50):
-        raise NotImplementedError()
+        if stage == 'final':
+            loss = criterion(dec_outputs[-1], dec_targets[-1])
+        elif stage == 'initial':
+            loss = criterion(dec_outputs[0], dec_targets[0])
+        elif stage == 'weighted':
+            loss = criterion(dec_outputs[0], dec_targets[0])
+            for outputs, targets in zip(dec_outputs[1:], dec_targets[1:]):
+                loss += criterion(outputs, targets)
+            # Make the final layer loss (for target output) count as much as loss for each preceding layer
+            loss += criterion(dec_outputs[-1], dec_targets[-1]) * len(dec_targets) - 2
+        elif stage == 'all_balanced':
+            loss = criterion(dec_outputs[0], dec_targets[0])
+            for outputs, targets in zip(dec_outputs[1:], dec_targets[1:]):
+                loss += criterion(outputs, targets)
+        else:
+            raise ValueError("stage must be one of: final, initial, weighted, all_balanced")
+
+        loss.backward()
+        optimizer.step()
+        # mean loss per word returned in order for losses for sents of diff lengths to be comparable
+        return loss.item() / sum([emb.size(0) for emb in dec_emb])
+
+    def generate(self, enc_emb, max_length=100):
+        """Only implementing greedy for now."""
+        with torch.no_grad():
+            return self.forward_e2e(enc_emb, max_length)
