@@ -91,14 +91,14 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
             raise ValueError("`random` must be None or an integer")
 
 
-class TextPipelineCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
+class TextPipelineCorpus(PipelineCorpus):
     def __init__(self, seq: Optional[List[AnyPipelineItemSubclass]] = None, metadata: Optional[dict] = None):
         super(TextPipelineCorpus, self).__init__(seq, metadata)
         self._max_layer_length = -1
         self._layer_lengths = {layer_name: -1 for layer_name in self.layers}
 
     @classmethod
-    def from_existing(cls, corpus: enunlg.data_management.pipelinecorpus.PipelineCorpus, mapping_functions):
+    def from_existing(cls, corpus: PipelineCorpus, mapping_functions):
         out_corpus = TextPipelineCorpus(corpus)
         for item in out_corpus:
             for layer in item.layers:
