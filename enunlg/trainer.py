@@ -49,6 +49,13 @@ class BasicTrainer(object):
                                                                 gamma=self.config.learning_rate_decay)
         self.tb_writer = SummaryWriter()
 
+    def log_training_loss(self, loss, index):
+        self.tb_writer.add_scalar('training_loss', loss, index)
+
+    def log_parameter_gradients(self, index):
+        for param, value in self.model.named_parameters():
+            self.tb_writer.add_scalar(f"{param}-grad", torch.mean(value.grad), )
+
     def train_iterations(self, *args, **kwargs):
         # TODO increase consistency between SCLSTM and TGen training so we can pull things up to this level
         raise NotImplementedError("Use one of the subclasses, don't try to use this one directly")
@@ -113,6 +120,8 @@ class SCLSTMTrainer(BasicTrainer):
             random.shuffle(pairs)
             for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
                 loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss, prob_teacher_forcing)
+                self.log_training_loss(float(loss), epoch * len(pairs) + index)
+                self.log_parameter_gradients(epoch * len(pairs) + index)
                 loss_this_interval += loss
                 if index % self.record_interval == 0:
                     avg_loss = loss_this_interval / self.record_interval
@@ -127,6 +136,7 @@ class SCLSTMTrainer(BasicTrainer):
             logging.info("============================================")
         logging.info("----------")
         logging.info(f"Training took {(time.time() - start_time) / 60} minutes")
+        self.tb_writer.close()
         return loss_to_plot
 
 
@@ -185,6 +195,8 @@ class Seq2SeqAttnTrainer(BasicTrainer):
             random.shuffle(pairs)
             for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
                 loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss)
+                self.log_training_loss(float(loss), epoch * len(pairs) + index)
+                self.log_parameter_gradients(epoch * len(pairs) + index)
                 loss_this_interval += loss
                 if index % self.record_interval == 0:
                     avg_loss = loss_this_interval / self.record_interval
@@ -204,6 +216,7 @@ class Seq2SeqAttnTrainer(BasicTrainer):
             logging.info("============================================")
         logging.info("----------")
         logging.info(f"Training took {(time.time() - start_time) / 60} minutes")
+        self.tb_writer.close()
         return loss_to_plot
 
     def early_stopping_criterion_met(self, validation_pairs):
@@ -321,9 +334,8 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
             stage = 'all_balanced'
             for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
                 loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss, stage)
-                self.tb_writer.add_scalar('training_loss', float(loss), epoch * len(pairs) + index)
-                for param, value in self.model.named_parameters():
-                    self.tb_writer.add_scalar(f"{param}-grad", torch.mean(value.grad), epoch * len(pairs) + index)
+                self.log_training_loss(float(loss), epoch * len(pairs) + index)
+                self.log_parameter_gradients(epoch * len(pairs) + index)
 
                 loss_this_interval += loss
                 if index % record_interval == 0:
