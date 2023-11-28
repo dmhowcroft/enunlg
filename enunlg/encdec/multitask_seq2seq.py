@@ -26,7 +26,7 @@ class MultitaskLSTMEncoder(s2s.BasicLSTMEncoder):
         self.num_tasks = len(task_names)
 
         # First layer is self.lstm
-        self.layers = {self.task_names[0]: self.lstm}
+        self.layers = torch.nn.ModuleDict({self.task_names[0]: self.lstm})
         for task_name in task_names[1:]:
             self.layers[task_name] = torch.nn.LSTM(self.num_hidden_dims, self.num_hidden_dims, batch_first=True)
 
@@ -79,7 +79,7 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
                                             self.config.encoder.embeddings.embedding_dim,
                                             self.config.encoder.num_hidden_dims,
                                             self.layer_names[1:])
-        self.task_decoders = {}
+        self.task_decoders = torch.nn.ModuleDict()
         for idx, name in enumerate(layer_names[1:]):
             self.task_decoders[name] = s2s.LSTMDecWithAttention(self.config[f"decoder_{name}"].num_hidden_dims,
                                                                 self.layer_vocab_sizes[idx+1],
@@ -99,6 +99,9 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
         enc_h_c_state = self.encoder.initial_h_c_state()
         # enc_outputs, enc_h_c_state
         return self.encoder(enc_emb, enc_h_c_state)
+
+    def forward(self, enc_emb):
+        return self.forward_e2e(enc_emb)
 
     def forward_multitask(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor, teacher_forcing: float = 0.0, teacher_forcing_sync_layers: bool = True):
         """
@@ -132,8 +135,7 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
             # the first element of dec_emb is the start token
             dec_outputs[0] = layer_dec_emb[0]
             # That's also why we skip the first element in our loop
-            # TODO make the above comment make sense O.o
-            for dec_input_index, dec_input in enumerate(layer_dec_emb[:-1]):
+            for dec_input_index, dec_input in enumerate(layer_dec_emb[1:]):
                 dec_output, dec_h_c_state = self.task_decoders[layer_name](dec_input, dec_h_c_state, enc_output)
                 dec_outputs[dec_input_index + 1] = dec_output
             outputs.append(dec_outputs)
@@ -148,20 +150,21 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
         """
         enc_outputs, enc_h_c_states = self.encode(enc_emb)
 
-        idx = len(self.layer_names) - 1
-        layer_name = self.layer_names[idx]
         enc_output = enc_outputs[-1]
         enc_h_c_state = enc_h_c_states[-1]
         dec_h_c_state = enc_h_c_state
-        dec_input = torch.tensor([[self.task_decoders[layer_name].start_idx]], device=DEVICE)
+
+        final_layer_name = self.layer_names[-1]
+        final_layer_decoder = self.task_decoders[final_layer_name]
+
+        dec_input = torch.tensor([[final_layer_decoder.start_idx]], device=DEVICE)
 
         dec_outputs = []
-        # run multiple decoders, one for each task
         for dec_index in range(max_output_length):
-            dec_output, dec_h_c_state = self.task_decoders[layer_name](dec_input, dec_h_c_state, enc_output)
+            dec_output, dec_h_c_state = final_layer_decoder(dec_input, dec_h_c_state, enc_output)
             topv, topi = dec_output.data.topk(1)
             dec_outputs.append(topi.item())
-            if topi.item() == self.task_decoders[layer_name].stop_idx:
+            if topi.item() == self.task_decoders[final_layer_name].stop_idx:
                 break
             dec_input = topi.squeeze().detach()
         return dec_outputs
