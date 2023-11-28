@@ -1,10 +1,14 @@
 from typing import List
 
 import logging
+import os
 import random
+
+import matplotlib.pyplot as plt
 
 import omegaconf
 import hydra
+import seaborn as sns
 import torch
 
 logging.basicConfig(encoding='utf-8', level=logging.INFO, format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s")
@@ -98,7 +102,13 @@ def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
     print(f"{multitask_training_pairs[0]=}")
     print(f"{len(multitask_training_pairs)=}")
     nine_to_one_split_idx = int(len(multitask_training_pairs) * 0.9)
-    trainer.train_iterations(multitask_training_pairs[:nine_to_one_split_idx], multitask_training_pairs[nine_to_one_split_idx:])
+    # losses_for_plotting = trainer.train_iterations(multitask_training_pairs[:90], multitask_training_pairs[90:100])
+    losses_for_plotting = trainer.train_iterations(multitask_training_pairs[:nine_to_one_split_idx], multitask_training_pairs[nine_to_one_split_idx:])
+
+    torch.save(psg.model.state_dict(), os.path.join(hydra_managed_output_dir, "trained-tgen-model.pt"))
+
+    sns.lineplot(data=losses_for_plotting)
+    plt.savefig(os.path.join(hydra_managed_output_dir, 'training-loss.png'))
 
 
 if __name__ == "__main__":
