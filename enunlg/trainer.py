@@ -6,6 +6,8 @@ import logging
 import random
 import time
 
+from torch.utils.tensorboard import SummaryWriter
+
 import omegaconf
 import sacrebleu.metrics as sm
 import torch
@@ -45,6 +47,7 @@ class BasicTrainer(object):
         # Initialize scheduler for optimizer
         self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer,
                                                                 gamma=self.config.learning_rate_decay)
+        self.tb_writer = SummaryWriter()
 
     def train_iterations(self, *args, **kwargs):
         # TODO increase consistency between SCLSTM and TGen training so we can pull things up to this level
@@ -300,6 +303,7 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         prev_chunk_start_time = start_time
         loss_this_interval = 0
         loss_to_plot = []
+        # self.tb_writer.add_graph(self.model, [x for x, _ in pairs[:10]])
 
         # Add handling for proportional recording intervals
         if 0 < self.record_interval < 1:
@@ -314,8 +318,13 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
             self._log_epoch_begin_stats()
             random.shuffle(pairs)
             stage = stages[epoch % 4]
+            stage = 'all_balanced'
             for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
                 loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss, stage)
+                self.tb_writer.add_scalar('training_loss', float(loss), epoch * len(pairs) + index)
+                for param, value in self.model.named_parameters():
+                    self.tb_writer.add_scalar(f"{param}-grad", torch.mean(value.grad), epoch * len(pairs) + index)
+
                 loss_this_interval += loss
                 if index % record_interval == 0:
                     avg_loss = loss_this_interval / record_interval
@@ -333,8 +342,10 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
                     break
             self.scheduler.step()
             logging.info("============================================")
+            self.tb_writer.flush()
         logging.info("----------")
         logging.info(f"Training took {(time.time() - start_time) / 60} minutes")
+        self.tb_writer.close()
         return loss_to_plot
 
     def early_stopping_criterion_met(self, validation_pairs):
@@ -345,7 +356,7 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         for in_indices, out_indices in validation_pairs:
             curr_outputs = self.model.generate(in_indices)
             best_outputs.append(self.output_vocab.pretty_string(curr_outputs))
-            ref_outputs.append(self.output_vocab.pretty_string(out_indices.tolist()))
+            ref_outputs.append(self.output_vocab.pretty_string(out_indices[-1].tolist()))
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
         # We only have one reference per output
