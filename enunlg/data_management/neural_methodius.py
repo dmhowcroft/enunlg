@@ -1,13 +1,17 @@
-import csv
-import os
-
 from collections import namedtuple
-
-import omegaconf
-from pyparsing import alphanums, Forward, OneOrMore, Suppress, Word, ZeroOrMore
 from typing import Iterable, List, Optional, Tuple
 
+import csv
+import logging
+import os
+
+from pyparsing import alphanums, Forward, OneOrMore, Suppress, Word, ZeroOrMore
+
+import omegaconf
+
 import enunlg.data_management.iocorpus as iocorpus
+
+logger = logging.getLogger(__name__)
 
 # TODO add hydra configuration for neural methodius stuff!
 NEURAL_METHODIUS_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/methodiusNeuralINLG2021/corpus/')

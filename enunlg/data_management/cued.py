@@ -2,6 +2,7 @@ from typing import Dict, Iterable, Optional
 
 import itertools
 import json
+import logging
 import os
 
 import box
@@ -9,6 +10,8 @@ import regex
 
 import enunlg.data_management.iocorpus as iocorpus
 import enunlg.meaning_representation.dialogue_acts as da_lib
+
+logger = logging.getLogger(__name__)
 
 SFX_RESTAURANT_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/raw/RNNLG/data/original/restaurant')
 SFX_HOTEL_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/raw/RNNLG/data/original/hotel')

@@ -2,7 +2,11 @@ from typing import Dict, Iterable, List, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from enunlg.data_management.webnlg import RDFTriple
 
+import logging
+
 import bidict
+
+logger = logging.getLogger(__name__)
 
 
 class IntegralRDFVocabulary(object):

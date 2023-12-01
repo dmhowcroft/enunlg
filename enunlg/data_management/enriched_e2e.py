@@ -15,6 +15,8 @@ from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg.data_management.pipelinecorpus
 
+logger = logging.getLogger(__name__)
+
 # TODO add hydra configuration for enriched e2e stuff
 ENRICHED_E2E_CONFIG = omegaconf.DictConfig({'ENRICHED_E2E_DIR': os.path.join(os.path.dirname(__file__),
                                                                              '../../datasets/processed/EnrichedE2E/')})

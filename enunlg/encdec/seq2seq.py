@@ -7,6 +7,8 @@ import torch
 import torch.nn
 import torch.nn.functional
 
+logger = logging.getLogger(__name__)
+
 DEVICE = torch.device("cpu")
 
 

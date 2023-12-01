@@ -1,12 +1,9 @@
-from collections import defaultdict
 from typing import Dict
 
 import logging
 
 import omegaconf
 import torch
-
-logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
 from enunlg.data_management.enriched_e2e import linearize_slot_value_mr, linearize_slot_value_mr_seq
 from enunlg.data_management.pipelinecorpus import TextPipelineCorpus
@@ -18,7 +15,7 @@ import enunlg.meaning_representation.slot_value
 import enunlg.trainer
 import enunlg.vocabulary
 
-
+logger = logging.getLogger(__name__)
 
 
 class PipelineSeq2SeqGenerator(object):

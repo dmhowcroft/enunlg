@@ -2,14 +2,16 @@
 Classes, functions, and constants for tokenisation.
 """
 
-from collections import namedtuple
 from typing import List
 
 import abc
+import logging
 
 import regex
 
 from enunlg.util import RegexRule
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractTokeniser(abc.ABC):

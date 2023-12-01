@@ -7,7 +7,11 @@ import torch
 import torch.nn
 import torch.nn.functional
 
+from enunlg.util import log_list_of_tensors_sizes
+
 import enunlg.encdec.seq2seq as s2s
+
+logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cpu")
 
@@ -169,37 +173,20 @@ class MultiDecoderSeq2SeqAttn(torch.nn.Module):
             dec_input = topi.squeeze().detach()
         return dec_outputs
 
-    def train_step(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor, optimizer, criterion, stage='final'):
+    def train_step(self, enc_emb: torch.Tensor, dec_emb: torch.Tensor, optimizer, criterion):
         optimizer.zero_grad()
 
         dec_outputs = self.forward_multitask(enc_emb, dec_emb)
-        logging.debug(f"{len(dec_outputs)=}")
-        for task in dec_outputs:
-            logging.debug(f"{task.size()}")
+        log_list_of_tensors_sizes(dec_outputs)
 
         dec_targets = []
         for task in dec_emb:
             dec_targets.append(torch.tensor([x.unsqueeze(0) for x in task]))
-        logging.debug(f"{len(dec_targets)=}")
-        for task in dec_targets:
-            logging.debug(f"{task.size()}")
+        log_list_of_tensors_sizes(dec_targets)
 
-        if stage == 'final':
-            loss = criterion(dec_outputs[-1], dec_targets[-1])
-        elif stage == 'initial':
-            loss = criterion(dec_outputs[0], dec_targets[0])
-        elif stage == 'weighted':
-            loss = criterion(dec_outputs[0], dec_targets[0])
-            for outputs, targets in zip(dec_outputs[1:], dec_targets[1:]):
-                loss += criterion(outputs, targets)
-            # Make the final layer loss (for target output) count as much as loss for each preceding layer
-            loss += criterion(dec_outputs[-1], dec_targets[-1]) * len(dec_targets) - 2
-        elif stage == 'all_balanced':
-            loss = criterion(dec_outputs[0], dec_targets[0])
-            for outputs, targets in zip(dec_outputs[1:], dec_targets[1:]):
-                loss += criterion(outputs, targets)
-        else:
-            raise ValueError("stage must be one of: final, initial, weighted, all_balanced")
+        loss = criterion(dec_outputs[0], dec_targets[0])
+        for outputs, targets in zip(dec_outputs[1:], dec_targets[1:]):
+            loss += criterion(outputs, targets)
 
         loss.backward()
         optimizer.step()

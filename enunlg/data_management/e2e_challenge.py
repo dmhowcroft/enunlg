@@ -10,6 +10,8 @@ import regex
 
 import enunlg.data_management.iocorpus as iocorpus
 
+logger = logging.getLogger(__name__)
+
 # TODO add hydra configuration for e2e challenge stuff!
 E2E_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/e2e-dataset/')
 E2E_CLEANED_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/e2e-cleaning/cleaned-data/')

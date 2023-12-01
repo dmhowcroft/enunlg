@@ -3,10 +3,7 @@
 from collections import namedtuple
 from typing import List, Optional, Tuple, TypeVar, TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import enunlg.embeddings
-    import enunlg.embeddings.onehot
-
+import logging
 import random
 
 import omegaconf
@@ -16,6 +13,12 @@ import torch.nn
 import torch.nn.functional
 
 import enunlg.embeddings.glove
+
+if TYPE_CHECKING:
+    import enunlg.embeddings
+    import enunlg.embeddings.onehot
+
+logger = logging.getLogger(__name__)
 
 LSTMState = namedtuple('LSTMState', ['hx', 'cx'])
 SCLSTMState = namedtuple('SCLSTMState', ['hx', 'cx', 'dx'])
@@ -365,7 +368,6 @@ class BaseSCLSTMModel(torch.nn.Module):
         for da_1, da_2 in zip(da_states, da_states[1:]):
             cost += self.one_slot_per_word_eta * self.one_slot_per_word_xi ** torch.abs(da_1 - da_2)
         return cost
-
     def train_step(self,
                    cued_da_bitvector: torch.Tensor,
                    target_token_indices: torch.Tensor,

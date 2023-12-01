@@ -1,10 +1,9 @@
-from dataclasses import asdict
-
 import logging
-logging.basicConfig(encoding='utf-8', level=logging.INFO)
 
 import enunlg.data_management.enriched_e2e as ee2e
 import enunlg.templates.lookup as lug
+
+logger = logging.getLogger(__name__)
 
 
 class PipelineLookupGenerator(object):

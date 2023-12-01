@@ -1,11 +1,16 @@
 from typing import List, Optional, Tuple, TYPE_CHECKING
-if TYPE_CHECKING:
-    import enunlg.vocabulary
+
+import logging
 
 import omegaconf
 import torch
 
 from enunlg.encdec.seq2seq import BasicLSTMEncoder, LSTMDecWithAttention
+
+if TYPE_CHECKING:
+    import enunlg.vocabulary
+
+logger = logging.getLogger(__name__)
 
 DEVICE = torch.device("cpu")
 

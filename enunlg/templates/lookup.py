@@ -4,7 +4,10 @@ from collections import defaultdict
 from typing import Any, Dict, Hashable, Iterable, List, Tuple
 
 import abc
+import logging
 import random
+
+logger = logging.getLogger(__name__)
 
 
 class LookupGenerator(abc.ABC):

@@ -1,8 +1,11 @@
 from typing import List
 
 import abc
+import logging
 
 import regex
+
+logger = logging.getLogger(__name__)
 
 
 class AbstractNormaliser(abc.ABC):

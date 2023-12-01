@@ -1,20 +1,20 @@
+from typing import List, TYPE_CHECKING
+
 import logging
 import random
 import time
 
-from typing import List, TYPE_CHECKING
-
 import enunlg.encdec.tgen
-
-if TYPE_CHECKING:
-    import enunlg.embeddings.onehot
-    import enunlg.vocabulary
 
 import omegaconf
 import torch
 import torch.nn
 
-import enunlg.encdec.seq2seq as s2s
+if TYPE_CHECKING:
+    import enunlg.embeddings.onehot
+    import enunlg.vocabulary
+
+logger = logging.getLogger(__name__)
 
 
 class TGenSemClassifier(torch.nn.Module):

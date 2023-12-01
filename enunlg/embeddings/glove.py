@@ -1,7 +1,11 @@
+import logging
+
 import torch
 import torch.nn
 
 import enunlg.vocabulary
+
+logger = logging.getLogger(__name__)
 
 
 class GloVeEmbeddings(torch.nn.Embedding):

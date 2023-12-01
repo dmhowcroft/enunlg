@@ -1,9 +1,13 @@
 from typing import Dict, Iterable, List, MutableMapping, Optional, Sequence, Set, Text, Tuple, Union, TYPE_CHECKING
 
+import logging
+
 import bidict
 
 if TYPE_CHECKING:
     import enunlg.meaning_representation.dialogue_acts as dialogue_acts
+
+logger = logging.getLogger(__name__)
 
 
 class DialogueActEmbeddings(object):

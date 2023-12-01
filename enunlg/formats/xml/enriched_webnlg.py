@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class Dbpedialink:

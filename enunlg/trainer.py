@@ -14,6 +14,8 @@ import torch
 
 import enunlg.encdec.seq2seq
 
+logger = logging.getLogger(__name__)
+
 
 class BasicTrainer(object):
     def __init__(self,
@@ -61,14 +63,14 @@ class BasicTrainer(object):
         raise NotImplementedError("Use one of the subclasses, don't try to use this one directly")
 
     def _log_epoch_begin_stats(self):
-        logging.info(f"Learning rate is now {self.learning_rate}")
+        logger.info(f"Learning rate is now {self.learning_rate}")
 
     def _log_examples_this_interval(self, pairs):
         for i, o in pairs:
-            logging.info("An example!")
-            logging.info(f"Input:  {self.model.input_rep_to_string(i.tolist())}")
-            logging.info(f"Ref:    {self.model.output_rep_to_string(o.tolist())}")
-            logging.info(f"Output: {self.model.output_rep_to_string(self.model.generate(i))}")
+            logger.info("An example!")
+            logger.info(f"Input:  {self.model.input_rep_to_string(i.tolist())}")
+            logger.info(f"Ref:    {self.model.output_rep_to_string(o.tolist())}")
+            logger.info(f"Output: {self.model.output_rep_to_string(self.model.generate(i))}")
 
 
 class SCLSTMTrainer(BasicTrainer):
@@ -108,34 +110,34 @@ class SCLSTMTrainer(BasicTrainer):
         if teacher_forcing_rule is None:
             pass
         elif teacher_forcing_rule == 'reduce_over_scheduled_epochs':
-            logging.info("Reducing teacher forcing linearly with number of (epochs / number of epochs scheduled)")
+            logger.info("Reducing teacher forcing linearly with number of (epochs / number of epochs scheduled)")
         else:
             logging.warning(f"Invalid value for teacher_forcing_rule: {teacher_forcing_rule}. Using default.")
 
         for epoch in range(self.epochs):
             if teacher_forcing_rule == 'reduce_over_scheduled_epochs':
                 prob_teacher_forcing = 1.0 - epoch / self.epochs
-            logging.info(f"Beginning epoch {epoch}...")
+            logger.info(f"Beginning epoch {epoch}...")
             self._log_epoch_begin_stats()
             random.shuffle(pairs)
             for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
-                loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss, prob_teacher_forcing)
+                loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss)
                 self.log_training_loss(float(loss), epoch * len(pairs) + index)
                 self.log_parameter_gradients(epoch * len(pairs) + index)
                 loss_this_interval += loss
                 if index % self.record_interval == 0:
                     avg_loss = loss_this_interval / self.record_interval
                     loss_this_interval = 0
-                    logging.info("------------------------------------")
-                    logging.info(f"{index} iteration mean loss = {avg_loss}")
-                    logging.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
+                    logger.info("------------------------------------")
+                    logger.info(f"{index} iteration mean loss = {avg_loss}")
+                    logger.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
                     prev_chunk_start_time = time.time()
                     loss_to_plot.append(avg_loss)
                     self._log_examples_this_interval(pairs[:10])
             self.scheduler.step()
-            logging.info("============================================")
-        logging.info("----------")
-        logging.info(f"Training took {(time.time() - start_time) / 60} minutes")
+            logger.info("============================================")
+        logger.info("----------")
+        logger.info(f"Training took {(time.time() - start_time) / 60} minutes")
         self.tb_writer.close()
         return loss_to_plot
 
@@ -168,10 +170,10 @@ class Seq2SeqAttnTrainer(BasicTrainer):
             super()._log_examples_this_interval(pairs)
         else:
             for i, o in pairs:
-                logging.info("An example!")
-                logging.info(f"Input:  {self.input_vocab.pretty_string(i.tolist())}")
-                logging.info(f"Ref:    {self.output_vocab.pretty_string(o.tolist())}")
-                logging.info(f"Output: {self.output_vocab.pretty_string(self.model.generate(i))}")
+                logger.info("An example!")
+                logger.info(f"Input:  {self.input_vocab.pretty_string(i.tolist())}")
+                logger.info(f"Ref:    {self.output_vocab.pretty_string(o.tolist())}")
+                logger.info(f"Output: {self.output_vocab.pretty_string(self.model.generate(i))}")
 
     def train_iterations(self,
                          pairs: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -189,7 +191,7 @@ class Seq2SeqAttnTrainer(BasicTrainer):
         loss_to_plot = []
 
         for epoch in range(self.epochs):
-            logging.info(f"Beginning epoch {epoch}...")
+            logger.info(f"Beginning epoch {epoch}...")
             self._curr_epoch = epoch
             self._log_epoch_begin_stats()
             random.shuffle(pairs)
@@ -201,21 +203,21 @@ class Seq2SeqAttnTrainer(BasicTrainer):
                 if index % self.record_interval == 0:
                     avg_loss = loss_this_interval / self.record_interval
                     loss_this_interval = 0
-                    logging.info("------------------------------------")
-                    logging.info(f"{index} iteration mean loss = {avg_loss}")
-                    logging.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
+                    logger.info("------------------------------------")
+                    logger.info(f"{index} iteration mean loss = {avg_loss}")
+                    logger.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
                     prev_chunk_start_time = time.time()
                     loss_to_plot.append(avg_loss)
                     self._log_examples_this_interval(pairs[:10])
             if validation_pairs is not None:
-                logging.info("Checking for early stopping!")
+                logger.info("Checking for early stopping!")
                 # Add check for minimum number of passes
                 if self.early_stopping_criterion_met(validation_pairs):
                     break
             self.scheduler.step()
-            logging.info("============================================")
-        logging.info("----------")
-        logging.info(f"Training took {(time.time() - start_time) / 60} minutes")
+            logger.info("============================================")
+        logger.info("----------")
+        logger.info(f"Training took {(time.time() - start_time) / 60} minutes")
         self.tb_writer.close()
         return loss_to_plot
 
@@ -225,8 +227,8 @@ class Seq2SeqAttnTrainer(BasicTrainer):
         best_outputs = []
         ref_outputs = []
         for in_indices, out_indices in validation_pairs:
-            # logging.info(f"Input:  {self.model.input_vocab.pretty_string(in_indices.tolist())}")
-            # logging.info(f"Greedy: {self.model.output_vocab.pretty_string(self.model.generate_greedy(in_indices))}")
+            # logger.info(f"Input:  {self.model.input_vocab.pretty_string(in_indices.tolist())}")
+            # logger.info(f"Greedy: {self.model.output_vocab.pretty_string(self.model.generate_greedy(in_indices))}")
             # TGen does beam_size 10 and sets expansion size to be the same
             # (See TGen config.yaml line 35 and seq2seq.py line 219 `new_paths.extend(path.expand(self.beam_size, out_probs, st))`)
             cur_outputs = self.model.generate_beam(in_indices, beam_size=10, num_expansions=10)
@@ -237,7 +239,7 @@ class Seq2SeqAttnTrainer(BasicTrainer):
         bleu = sm.BLEU()
         # We only have one reference per output
         bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
-        logging.info(f"Current score: {bleu_score}")
+        logger.info(f"Current score: {bleu_score}")
         if bleu_score.score > self._early_stopping_scores[-1]:
             self._early_stopping_scores.append(bleu_score.score)
             self._early_stopping_scores = sorted(self._early_stopping_scores)[1:]
@@ -248,7 +250,7 @@ class Seq2SeqAttnTrainer(BasicTrainer):
             return False
         # Otherwise, stop early
         else:
-            logging.info("Scores have not improved recently on the validation set, so we are stopping training now.")
+            logger.info("Scores have not improved recently on the validation set, so we are stopping training now.")
             return True
 
 
@@ -297,10 +299,10 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
             super()._log_examples_this_interval(pairs)
         else:
             for i, o in pairs:
-                logging.info("An example!")
-                logging.info(f"Input:  {self.input_vocab.pretty_string(i.tolist())}")
-                logging.info(f"Ref:    {self.output_vocab.pretty_string(o[-1].tolist())}")
-                logging.info(f"Output: {self.output_vocab.pretty_string(self.model.generate(i))}")
+                logger.info("An example!")
+                logger.info(f"Input:  {self.input_vocab.pretty_string(i.tolist())}")
+                logger.info(f"Ref:    {self.output_vocab.pretty_string(o[-1].tolist())}")
+                logger.info(f"Output: {self.output_vocab.pretty_string(self.model.generate(i))}")
 
     def train_iterations(self,
                          pairs: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -326,14 +328,14 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
 
         stages = ['final', 'initial', 'weighted', 'all_balanced']
         for epoch in range(self.epochs):
-            logging.info(f"Beginning epoch {epoch}...")
+            logger.info(f"Beginning epoch {epoch}...")
             self._curr_epoch = epoch
             self._log_epoch_begin_stats()
             random.shuffle(pairs)
             stage = stages[epoch % 4]
             stage = 'all_balanced'
             for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
-                loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss, stage)
+                loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss)
                 self.log_training_loss(float(loss), epoch * len(pairs) + index)
                 self.log_parameter_gradients(epoch * len(pairs) + index)
 
@@ -341,22 +343,22 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
                 if index % record_interval == 0:
                     avg_loss = loss_this_interval / record_interval
                     loss_this_interval = 0
-                    logging.info("------------------------------------")
-                    logging.info(f"{index} iteration mean loss = {avg_loss}")
-                    logging.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
+                    logger.info("------------------------------------")
+                    logger.info(f"{index} iteration mean loss = {avg_loss}")
+                    logger.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
                     prev_chunk_start_time = time.time()
                     loss_to_plot.append(avg_loss)
                     self._log_examples_this_interval(pairs[:10])
             if validation_pairs is not None:
-                logging.info("Checking for early stopping!")
+                logger.info("Checking for early stopping!")
                 # Add check for minimum number of passes
                 if self.early_stopping_criterion_met(validation_pairs):
                     break
             self.scheduler.step()
-            logging.info("============================================")
+            logger.info("============================================")
             self.tb_writer.flush()
-        logging.info("----------")
-        logging.info(f"Training took {(time.time() - start_time) / 60} minutes")
+        logger.info("----------")
+        logger.info(f"Training took {(time.time() - start_time) / 60} minutes")
         self.tb_writer.close()
         return loss_to_plot
 
@@ -373,7 +375,7 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         bleu = sm.BLEU()
         # We only have one reference per output
         bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
-        logging.info(f"Current score: {bleu_score}")
+        logger.info(f"Current score: {bleu_score}")
         if bleu_score.score > self._early_stopping_scores[-1]:
             self._early_stopping_scores.append(bleu_score.score)
             self._early_stopping_scores = sorted(self._early_stopping_scores)[1:]
@@ -384,5 +386,5 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
             return False
         # Otherwise, stop early
         else:
-            logging.info("Scores have not improved recently on the validation set, so we are stopping training now.")
+            logger.info("Scores have not improved recently on the validation set, so we are stopping training now.")
             return True

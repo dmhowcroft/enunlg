@@ -11,14 +11,14 @@ import hydra
 import seaborn as sns
 import torch
 
-logging.basicConfig(encoding='utf-8', level=logging.INFO, format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s")
-
 from enunlg.data_management.pipelinecorpus import TextPipelineCorpus
 from enunlg.trainer import MultiDecoderSeq2SeqAttnTrainer
 
 import enunlg.data_management.enriched_e2e as ee2e
 import enunlg.encdec.multitask_seq2seq
 import enunlg.vocabulary
+
+logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
 
 
 class MultitaskSeq2SeqGenerator(object):
@@ -33,7 +33,7 @@ class MultitaskSeq2SeqGenerator(object):
         """
         self.layers: List[str] = corpus.annotation_layers
         self.max_length_any_layer = corpus.max_layer_length
-        logging.debug(f"{self.max_length_any_layer=}")
+        logger.debug(f"{self.max_length_any_layer=}")
         self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: enunlg.vocabulary.TokenVocabulary(corpus.items_by_layer(layer)) for layer in self.layers} # type: ignore[misc]
         # There's definitely a cleaner way to do this, but we're lazy and hacky for a first prototype
         # We end up with a list of embeddings and a dict of list of embeddings to target
@@ -65,15 +65,15 @@ class MultitaskSeq2SeqGenerator(object):
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')
 def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
     hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    logging.info(f"Logs and output will be written to {hydra_managed_output_dir}")
+    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
     seed = config.random_seed
     random.seed(seed)
     torch.manual_seed(seed)
 
     # TODO make more of the following dependent on config
-    ee2e_corpus = ee2e.load_enriched_e2e(splits=("train",))
+    ee2e_corpus = ee2e.load_enriched_e2e(splits=("dev",))
     for entry in ee2e_corpus[:6]:
-        logging.info(entry)
+        logger.info(entry)
 
     # Convert corpus to text pipeline corpus
     linearization_functions = {'raw_input': ee2e.linearize_slot_value_mr,

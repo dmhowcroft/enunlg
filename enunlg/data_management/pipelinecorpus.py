@@ -6,6 +6,8 @@ import random
 
 import enunlg.data_management.iocorpus
 
+logger = logging.getLogger(__name__)
+
 
 def string_to_python_identifier(text: str):
     return text.replace("-", "_").replace(" ", "_").strip()
