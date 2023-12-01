@@ -99,7 +99,7 @@ class LSTMDecWithAttention(BasicDecoder):
                                                    start_token_idx=start_token_idx, stop_token_idx=stop_token_idx)
         # Only define extra layers for attention here
         # Not sure exactly why the max input length needs to be two longer -- can't figure out where that's coming from
-        self.attention = torch.nn.Linear(self.hidden_size + self.embedding_size, self.max_input_length + 2)
+        self.attention = torch.nn.Linear(self.hidden_size + self.embedding_size, self.max_input_length)
         self.combining_attention = torch.nn.Linear(self.hidden_size + self.embedding_size, self.embedding_size)
 
     def forward(self, input_index, h_c_state, encoder_outputs):
