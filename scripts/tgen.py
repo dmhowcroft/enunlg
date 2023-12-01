@@ -14,6 +14,8 @@ import omegaconf
 import seaborn as sns
 import torch
 
+logging.basicConfig(encoding='utf-8', level=logging.INFO, format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s")
+
 import enunlg.encdec.tgen
 from enunlg.normalisation.tokenisation import TGenTokeniser
 
