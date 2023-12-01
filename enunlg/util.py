@@ -27,3 +27,9 @@ def count_parameters(model):
     print(table)
     print(f"Total Trainable Params: {total_params}")
     return total_params
+
+
+def log_list_of_tensors_sizes(list_of_tensors, level=logging.DEBUG) -> None:
+    logging.log(level, f"{len(list_of_tensors)=}")
+    for task in list_of_tensors:
+        logging.log(level, f"{task.size()}")
