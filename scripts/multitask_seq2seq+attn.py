@@ -16,6 +16,7 @@ from enunlg.trainer import MultiDecoderSeq2SeqAttnTrainer
 
 import enunlg.data_management.enriched_e2e as ee2e
 import enunlg.encdec.multitask_seq2seq
+import enunlg.util
 import enunlg.vocabulary
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
@@ -40,7 +41,7 @@ class MultitaskSeq2SeqGenerator(object):
         self.input_embeddings = [torch.tensor(self.vocabularies[self.input_layer_name].get_ints_with_left_padding(item, self.max_length_any_layer), dtype=torch.long) for item in corpus.items_by_layer(self.input_layer_name)]
         self.output_embeddings = {layer: [torch.tensor(self.vocabularies[layer].get_ints(item), dtype=torch.long) for item in corpus.items_by_layer(layer)] for layer in self.decoder_target_layer_names}
 
-        self.model = enunlg.encdec.multitask_seq2seq.MultiDecoderSeq2SeqAttn(self.layers, [self.vocabularies[layer].size for layer in self.vocabularies], model_config)
+        self.model = enunlg.encdec.multitask_seq2seq.ShallowEncoderMultiDecoderSeq2SeqAttn(self.layers, [self.vocabularies[layer].size for layer in self.vocabularies], model_config)
 
     @property
     def input_layer_name(self) -> str:
@@ -62,8 +63,7 @@ class MultitaskSeq2SeqGenerator(object):
         return self.model.generate(mr)
 
 
-@hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')
-def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
+def train_multitask_seq2seq_attn(config: omegaconf.DictConfig):
     hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
     logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
     seed = config.random_seed
@@ -109,6 +109,47 @@ def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
 
     sns.lineplot(data=losses_for_plotting)
     plt.savefig(os.path.join(hydra_managed_output_dir, 'training-loss.png'))
+
+
+def show_parameter_stats(config: omegaconf.DictConfig):
+    hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
+    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
+    seed = config.random_seed
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    # TODO make more of the following dependent on config
+    ee2e_corpus = ee2e.load_enriched_e2e(splits=("dev",))
+    for entry in ee2e_corpus[:6]:
+        logger.info(entry)
+
+    # Convert corpus to text pipeline corpus
+    linearization_functions = {'raw_input': ee2e.linearize_slot_value_mr,
+                               'selected_input': ee2e.linearize_slot_value_mr,
+                               'ordered_input': ee2e.linearize_slot_value_mr,
+                               'sentence_segmented_input': ee2e.linearize_slot_value_mr_seq,
+                               'lexicalisation': lambda lex_string: lex_string.strip().split(),
+                               'referring_expressions': lambda reg_string: reg_string.strip().split(),
+                               'raw_output': lambda text: text.strip().split()}
+
+    ee2e_corpus.print_summary_stats()
+    print("____________")
+    text_corpus = TextPipelineCorpus.from_existing(ee2e_corpus, mapping_functions=linearization_functions)
+    text_corpus.print_summary_stats()
+    text_corpus.print_sample(0, 100, 10)
+
+    psg = MultitaskSeq2SeqGenerator(text_corpus, config.model)
+    total_parameters = enunlg.util.count_parameters(psg.model)
+
+
+@hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')
+def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
+    if config.mode == "train":
+        train_multitask_seq2seq_attn(config)
+    elif config.mode == "parameters":
+        show_parameter_stats(config)
+    else:
+        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
 
 
 if __name__ == "__main__":
