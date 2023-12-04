@@ -12,7 +12,7 @@ import seaborn as sns
 import torch
 
 from enunlg.data_management.pipelinecorpus import TextPipelineCorpus
-from enunlg.trainer import MultiDecoderSeq2SeqAttnTrainer
+from enunlg.trainer.multitask_seq2seq import MultiDecoderSeq2SeqAttnTrainer
 
 import enunlg.data_management.enriched_e2e as ee2e
 import enunlg.encdec.multitask_seq2seq

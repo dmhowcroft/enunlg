@@ -5,6 +5,7 @@ import logging
 import omegaconf
 import torch
 
+import enunlg.trainer.seq2seq
 from enunlg.data_management.enriched_e2e import linearize_slot_value_mr, linearize_slot_value_mr_seq
 from enunlg.data_management.pipelinecorpus import TextPipelineCorpus
 
@@ -74,10 +75,10 @@ class PipelineSeq2SeqGenerator(object):
             self.modules[layer_pair] = s2s.Seq2SeqAttn(self.vocabularies[in_layer].size,
                                                        self.vocabularies[out_layer].size,
                                                        model_config=model_config)
-            trainer = enunlg.trainer.Seq2SeqAttnTrainer(self.modules[layer_pair],
-                                                        training_config=training_config,
-                                                        input_vocab=self.vocabularies[in_layer],
-                                                        output_vocab=self.vocabularies[out_layer])
+            trainer = enunlg.trainer.seq2seq.Seq2SeqAttnTrainer(self.modules[layer_pair],
+                                                                training_config=training_config,
+                                                                input_vocab=self.vocabularies[in_layer],
+                                                                output_vocab=self.vocabularies[out_layer])
             corpus_pairs = [(x[0], x[1]) for x in zip(self.input_embeddings[in_layer], self.output_embeddings[out_layer])]
             idx_for_90_percent_split = int(len(corpus_pairs) * 0.9)
             trainer.train_iterations(corpus_pairs[:idx_for_90_percent_split],

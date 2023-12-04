@@ -12,6 +12,7 @@ import omegaconf
 import seaborn as sns
 import torch
 
+import enunlg.trainer.sclstm
 import enunlg.util
 
 import enunlg.data_management.cued as cued
@@ -113,7 +114,7 @@ def train_sclstm(config: omegaconf.DictConfig):
 
     logging.info(f"Running {config.train.num_epochs} epochs of {len(training_pairs)} iterations (looking at each training pair once per epoch)")
     # record_interval = 519 gives us 6 splits per epoch
-    trainer = enunlg.trainer.SCLSTMTrainer(sclstm, training_config=config.train)
+    trainer = enunlg.trainer.sclstm.SCLSTMTrainer(sclstm, training_config=config.train)
     losses_for_plotting = trainer.train_iterations(training_pairs)
     torch.save(sclstm.state_dict(), os.path.join(hydra_managed_output_dir, "trained-sclstm-model.pt"))
     sns.lineplot(data=losses_for_plotting)

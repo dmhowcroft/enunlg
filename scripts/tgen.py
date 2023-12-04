@@ -14,6 +14,8 @@ import omegaconf
 import seaborn as sns
 import torch
 
+import enunlg.trainer.tgen
+
 logging.basicConfig(encoding='utf-8', level=logging.INFO, format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s")
 
 import enunlg.encdec.tgen
@@ -150,7 +152,7 @@ def train_tgen(config: omegaconf.DictConfig):
                         for enc_indices, dec_indices in zip(dev_enc_indices, dev_dec_indices)]
 
     logging.info(f"Running {config.train.num_epochs} epochs of {len(training_pairs)} iterations (looking at each training pair once per epoch)")
-    trainer = enunlg.trainer.TGenTrainer(tgen, training_config=config.train)
+    trainer = enunlg.trainer.tgen.TGenTrainer(tgen, training_config=config.train)
     losses_for_plotting = trainer.train_iterations(training_pairs, validation_pairs)
     torch.save(tgen.state_dict(), os.path.join(hydra_managed_output_dir, "trained-tgen-model.pt"))
 
