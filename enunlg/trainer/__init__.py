@@ -221,20 +221,22 @@ class Seq2SeqAttnTrainer(BasicTrainer):
         self.tb_writer.close()
         return loss_to_plot
 
-    def early_stopping_criterion_met(self, validation_pairs):
-        # TGen uses BLEU score for validation
-        # Generate current realisations for MRs in validation pairs
+    def sample_generations_and_references(self, pairs) -> Tuple[List[str], List[str]]:
         best_outputs = []
         ref_outputs = []
-        for in_indices, out_indices in validation_pairs:
-            # logger.info(f"Input:  {self.model.input_vocab.pretty_string(in_indices.tolist())}")
-            # logger.info(f"Greedy: {self.model.output_vocab.pretty_string(self.model.generate_greedy(in_indices))}")
+        for in_indices, out_indices in pairs:
             # TGen does beam_size 10 and sets expansion size to be the same
             # (See TGen config.yaml line 35 and seq2seq.py line 219 `new_paths.extend(path.expand(self.beam_size, out_probs, st))`)
             cur_outputs = self.model.generate_beam(in_indices, beam_size=10, num_expansions=10)
             # The best output is the first one in the list, and the list contains pairs of length normalised logprobs along with the output indices
             best_outputs.append(self.output_vocab.pretty_string(cur_outputs[0][1]))
             ref_outputs.append(self.output_vocab.pretty_string(out_indices.tolist()))
+        return best_outputs, ref_outputs
+
+    def early_stopping_criterion_met(self, validation_pairs) -> bool:
+        # TGen uses BLEU score for validation
+        # Generate current realisations for MRs in validation pairs
+        best_outputs, ref_outputs = self.sample_generations_and_references(validation_pairs)
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
         # We only have one reference per output
@@ -362,15 +364,19 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         self.tb_writer.close()
         return loss_to_plot
 
-    def early_stopping_criterion_met(self, validation_pairs):
-        # TGen uses BLEU score for validation
-        # Generate current realisations for MRs in validation pairs
+    def sample_generations_and_references(self, pairs) -> Tuple[List[str], List[str]]:
         best_outputs = []
         ref_outputs = []
-        for in_indices, out_indices in validation_pairs:
+        for in_indices, out_indices in pairs:
             curr_outputs = self.model.generate(in_indices)
             best_outputs.append(self.output_vocab.pretty_string(curr_outputs))
             ref_outputs.append(self.output_vocab.pretty_string(out_indices[-1].tolist()))
+        return best_outputs, ref_outputs
+
+    def early_stopping_criterion_met(self, validation_pairs):
+        # TGen uses BLEU score for validation
+        # Generate current realisations for MRs in validation pairs
+        best_outputs, ref_outputs = self.sample_generations_and_references(validation_pairs)
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
         # We only have one reference per output
