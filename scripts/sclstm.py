@@ -15,7 +15,7 @@ import torch
 import enunlg.util
 
 import enunlg.data_management.cued as cued
-import enunlg.embeddings.onehot as onehot
+import enunlg.embeddings.binary as onehot
 import enunlg.encdec.sclstm as sclstm_models
 import enunlg.meaning_representation.dialogue_acts as da_lib
 import enunlg.normalisation.norms as norms

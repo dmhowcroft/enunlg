@@ -16,7 +16,7 @@ import enunlg.embeddings.glove
 
 if TYPE_CHECKING:
     import enunlg.embeddings
-    import enunlg.embeddings.onehot
+    import enunlg.embeddings.binary
 
 logger = logging.getLogger(__name__)
 

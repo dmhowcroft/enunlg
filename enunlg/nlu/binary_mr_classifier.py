@@ -11,7 +11,7 @@ import torch
 import torch.nn
 
 if TYPE_CHECKING:
-    import enunlg.embeddings.onehot
+    import enunlg.embeddings.binary
     import enunlg.vocabulary
 
 logger = logging.getLogger(__name__)

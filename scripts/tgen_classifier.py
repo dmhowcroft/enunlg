@@ -11,7 +11,7 @@ import torch
 
 import enunlg.data_management.e2e_challenge as e2e
 import enunlg.meaning_representation.dialogue_acts as das
-import enunlg.embeddings.onehot as onehot
+import enunlg.embeddings.binary as onehot
 import enunlg
 import enunlg as binary_mr_classifier
 import enunlg.util

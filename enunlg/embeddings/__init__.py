@@ -3,7 +3,7 @@ from omegaconf import DictConfig
 
 import enunlg.embeddings.glove
 
-__all__ = ["glove", "onehot"]
+__all__ = ["glove", "binary"]
 
 
 def embedding_model_from_config(config: DictConfig):
