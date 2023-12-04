@@ -85,37 +85,37 @@ class TGenSemClassifier(torch.nn.Module):
 
         start_time = time.time()
         prev_chunk_start_time = start_time
-        loss_this_chunk = 0
+        loss_this_interval = 0
         loss_to_plot = []
 
         for epoch in range(epochs):
-            logging.info(f"Beginning epoch {epoch}...")
-            logging.info(f"Learning rate is now {self.learning_rate}")
+            logger.info(f"Beginning epoch {epoch}...")
+            logger.info(f"Learning rate is now {self.learning_rate}")
             random.shuffle(pairs)
             for index, (text_ints, mr_onehot) in enumerate(pairs, start=1):
                 loss = self.train_step(text_ints, mr_onehot)
-                loss_this_chunk += loss
+                loss_this_interval += loss
                 if index % record_interval == 0:
-                    avg_loss = loss_this_chunk / record_interval
-                    loss_this_chunk = 0
-                    logging.info("------------------------------------")
-                    logging.info(f"{index} iteration loss = {avg_loss}")
-                    logging.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
+                    avg_loss = loss_this_interval / record_interval
+                    loss_this_interval = 0
+                    logger.info("------------------------------------")
+                    logger.info(f"{index} iteration mean loss = {avg_loss}")
+                    logger.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
                     prev_chunk_start_time = time.time()
                     loss_to_plot.append(avg_loss)
                     for i, o in pairs[:10]:
-                        logging.info("An example!")
-                        logging.info(f"Text:   {' '.join([x for x in self.text_vocabulary.get_tokens(i.tolist()) if x != '<VOID>'])}")
-                        logging.info(f"MR:     {self.onehot_encoder.embedding_to_string(o.tolist())}")
+                        logger.info("An example!")
+                        logger.info(f"Text:   {' '.join([x for x in self.text_vocabulary.get_tokens(i.tolist()) if x != '<VOID>'])}")
+                        logger.info(f"MR:     {self.onehot_encoder.embedding_to_string(o.tolist())}")
                         prediction = self.predict(i).squeeze(0).squeeze(0).tolist()
                         output_list = [1.0 if x > 0.95 else 0.0 for x in prediction]
-                        logging.info(f"Output: {self.onehot_encoder.embedding_to_string(output_list)}")
-                        logging.info(f"One-hot target: {o.tolist()}")
-                        logging.info(f"Current output: {prediction}")
+                        logger.info(f"Output: {self.onehot_encoder.embedding_to_string(output_list)}")
+                        logger.info(f"One-hot target: {o.tolist()}")
+                        logger.info(f"Current output: {prediction}")
             self.scheduler.step()
-            logging.info("============================================")
-        logging.info("----------")
-        logging.info(f"Training took {(time.time() - start_time) / 60} minutes")
+            logger.info("============================================")
+        logger.info("----------")
+        logger.info(f"Training took {(time.time() - start_time) / 60} minutes")
         return loss_to_plot
 
     def predict(self, text_ints):
