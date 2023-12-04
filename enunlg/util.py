@@ -24,8 +24,8 @@ def count_parameters(model):
         params = parameter.numel()
         table.add_row([name, params])
         total_params += params
-    print(table)
-    print(f"Total Trainable Params: {total_params}")
+    logging.info(table)
+    logging.info(f"Total Trainable Params: {total_params}")
     return total_params
 
 
