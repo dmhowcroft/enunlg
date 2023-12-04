@@ -29,14 +29,15 @@ DELEX_LABELS = ["__AREA__", "__CUSTOMER_RATING__", "__EATTYPE__", "__FAMILYFRIEN
 DIFFER = difflib.Differ()
 
 
-def extract_reg_from_template_and_text(text: str, template: str) -> MutableMapping[str, List[str]]:
+def extract_reg_from_template_and_text(text: str, template: str, print_diff: bool = False) -> MutableMapping[str, List[str]]:
     diff = DIFFER.compare(text.strip().split(), template.strip().split())
     keys = []
     values = []
     curr_key = []
     curr_value = []
     for line in diff:
-        # print(line)
+        if print_diff:
+            logger.debug(line)
         if line.startswith('-'):
             curr_value.append(line.split()[1])
         elif line.startswith('+'):
@@ -89,14 +90,14 @@ class PipelineCorpusMapper(object):
         self.annotation_layer_mappings = annotation_layer_mappings
 
     def __call__(self, input_corpus: Iterable) -> List:
-        logger.debug(f'successful call to {self.__class__.__name__} as a function (rather than a class)')
+        # logger.debug(f'successful call to {self.__class__.__name__} as a function (rather than a class)')
         if isinstance(input_corpus, self.input_format):
-            logger.debug('passed the format check')
+            # logger.debug('passed the format check')
             output_seq = []
             for entry in input_corpus:
                 output = []
                 for layer in self.annotation_layer_mappings:
-                    logger.debug(f"processing {layer}")
+                    # logger.debug(f"processing {layer}")
                     output.append(self.annotation_layer_mappings[layer](entry))
                 # EnrichedE2E-formated datasets have up to N distinct targets for each single input
                 # This will show up as the first 'layer' having length 1 and subsequent layers having length > 1
@@ -108,7 +109,7 @@ class PipelineCorpusMapper(object):
                 for i in range(num_targets-1):
                     item = self.output_format({key: output[idx][i] for idx, key in enumerate(self.annotation_layer_mappings.keys())})
                     output_seq.append(item)
-                logger.debug(f"Num entries so far: {len(output_seq)}")
+                # logger.debug(f"Num entries so far: {len(output_seq)}")
             return output_seq
         else:
             raise TypeError(f"Cannot run {self.__class__} on {type(input_corpus)}")
@@ -213,7 +214,9 @@ def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
                     if match_found:
                         break
                 if not match_found:
-                    print(f"could not find: {lex_token}")
+                    logger.info(f"Could not create reg_lex text for {lex_token}")
+                    logger.debug(f"in:\n{text}\n{template}\n{lex}\n{reg_dict}")
+                    extract_reg_from_template_and_text(text, template, print_diff=True)
                     new_lex.append(lex_token)
                     # raise ValueError(f"Could not create reg_lex text for {lex_token} in:\n{text}\n{template}\n{lex}\n{reg_dict}")
             else:
