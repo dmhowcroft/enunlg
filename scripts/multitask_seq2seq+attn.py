@@ -21,6 +21,17 @@ import enunlg.vocabulary
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
 
+SUPPORTED_DATASETS = {"enriched-e2e"}
+
+# Convert corpus to text pipeline corpus
+LINEARIZATION_FUNCTIONS = {'raw_input': ee2e.linearize_slot_value_mr,
+                           'selected_input': ee2e.linearize_slot_value_mr,
+                           'ordered_input': ee2e.linearize_slot_value_mr,
+                           'sentence_segmented_input': ee2e.linearize_slot_value_mr_seq,
+                           'lexicalisation': lambda lex_string: lex_string.strip().split(),
+                           'referring_expressions': lambda reg_string: reg_string.strip().split(),
+                           'raw_output': lambda text: text.strip().split()}
+
 
 class MultitaskSeq2SeqGenerator(object):
     def __init__(self, corpus: TextPipelineCorpus, model_config: omegaconf.DictConfig):
@@ -41,7 +52,7 @@ class MultitaskSeq2SeqGenerator(object):
         self.input_embeddings = [torch.tensor(self.vocabularies[self.input_layer_name].get_ints_with_left_padding(item, self.max_length_any_layer), dtype=torch.long) for item in corpus.items_by_layer(self.input_layer_name)]
         self.output_embeddings = {layer: [torch.tensor(self.vocabularies[layer].get_ints(item), dtype=torch.long) for item in corpus.items_by_layer(layer)] for layer in self.decoder_target_layer_names}
 
-        self.model = enunlg.encdec.multitask_seq2seq.ShallowEncoderMultiDecoderSeq2SeqAttn(self.layers, [self.vocabularies[layer].size for layer in self.vocabularies], model_config)
+        self.model = enunlg.encdec.multitask_seq2seq.DeepEncoderMultiDecoderSeq2SeqAttn(self.layers, [self.vocabularies[layer].size for layer in self.vocabularies], model_config)
 
     @property
     def input_layer_name(self) -> str:
@@ -63,83 +74,59 @@ class MultitaskSeq2SeqGenerator(object):
         return self.model.generate(mr)
 
 
-def train_multitask_seq2seq_attn(config: omegaconf.DictConfig):
-    hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
-    seed = config.random_seed
+def set_random_seeds(seed) -> None:
     random.seed(seed)
     torch.manual_seed(seed)
 
-    # TODO make more of the following dependent on config
-    ee2e_corpus = ee2e.load_enriched_e2e(splits=("dev",))
+
+def load_data_from_config(data_config) -> ee2e.EnrichedE2ECorpus:
+    if data_config.corpus.name not in SUPPORTED_DATASETS:
+        raise ValueError(f"Unsupported dataset: {data_config.corpus.name}")
+    if data_config.corpus.name == 'enriched-e2e':
+        logger.info("Loading Enriched E2E Challenge Data...")
+        return ee2e.load_enriched_e2e(data_config.corpus.splits)
+    else:
+        raise ValueError("We can only load the Enriched E2E dataset right now.")
+
+
+def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None):
+    hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
+    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
+    set_random_seeds(config.random_seed)
+
+    ee2e_corpus = load_data_from_config(config.data)
     for entry in ee2e_corpus[:6]:
         logger.info(entry)
-
-    # Convert corpus to text pipeline corpus
-    linearization_functions = {'raw_input': ee2e.linearize_slot_value_mr,
-                               'selected_input': ee2e.linearize_slot_value_mr,
-                               'ordered_input': ee2e.linearize_slot_value_mr,
-                               'sentence_segmented_input': ee2e.linearize_slot_value_mr_seq,
-                               'lexicalisation': lambda lex_string: lex_string.strip().split(),
-                               'referring_expressions': lambda reg_string: reg_string.strip().split(),
-                               'raw_output': lambda text: text.strip().split()}
-
     ee2e_corpus.print_summary_stats()
     print("____________")
-    text_corpus = TextPipelineCorpus.from_existing(ee2e_corpus, mapping_functions=linearization_functions)
+
+    # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
+    text_corpus = TextPipelineCorpus.from_existing(ee2e_corpus, mapping_functions=LINEARIZATION_FUNCTIONS)
     text_corpus.print_summary_stats()
     text_corpus.print_sample(0, 100, 10)
 
-    psg = MultitaskSeq2SeqGenerator(text_corpus, config.model)
+    generator = MultitaskSeq2SeqGenerator(text_corpus, config.model)
+    total_parameters = enunlg.util.count_parameters(generator.model)
+    if shortcircuit == 'parameters':
+        exit()
 
-    trainer = MultiDecoderSeq2SeqAttnTrainer(psg.model, config.train, input_vocab=psg.vocabularies["raw_input"], output_vocab=psg.vocabularies["raw_output"])
+    trainer = MultiDecoderSeq2SeqAttnTrainer(generator.model, config.train, input_vocab=generator.vocabularies["raw_input"], output_vocab=generator.vocabularies["raw_output"])
 
     task_embeddings = []
-    for idx in range(len(psg.input_embeddings)):
-        task_embeddings.append([psg.output_embeddings[layer][idx] for layer in psg.decoder_target_layer_names])
+    for idx in range(len(generator.input_embeddings)):
+        task_embeddings.append([generator.output_embeddings[layer][idx] for layer in generator.decoder_target_layer_names])
 
-    multitask_training_pairs = list(zip(psg.input_embeddings, task_embeddings))
+    multitask_training_pairs = list(zip(generator.input_embeddings, task_embeddings))
     print(f"{multitask_training_pairs[0]=}")
     print(f"{len(multitask_training_pairs)=}")
     nine_to_one_split_idx = int(len(multitask_training_pairs) * 0.9)
     # losses_for_plotting = trainer.train_iterations(multitask_training_pairs[:90], multitask_training_pairs[90:100])
     losses_for_plotting = trainer.train_iterations(multitask_training_pairs[:nine_to_one_split_idx], multitask_training_pairs[nine_to_one_split_idx:])
 
-    torch.save(psg.model.state_dict(), os.path.join(hydra_managed_output_dir, "trained-tgen-model.pt"))
+    torch.save(generator.model.state_dict(), os.path.join(hydra_managed_output_dir, "trained-tgen-model.pt"))
 
     sns.lineplot(data=losses_for_plotting)
     plt.savefig(os.path.join(hydra_managed_output_dir, 'training-loss.png'))
-
-
-def show_parameter_stats(config: omegaconf.DictConfig):
-    hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
-    seed = config.random_seed
-    random.seed(seed)
-    torch.manual_seed(seed)
-
-    # TODO make more of the following dependent on config
-    ee2e_corpus = ee2e.load_enriched_e2e(splits=("dev",))
-    for entry in ee2e_corpus[:6]:
-        logger.info(entry)
-
-    # Convert corpus to text pipeline corpus
-    linearization_functions = {'raw_input': ee2e.linearize_slot_value_mr,
-                               'selected_input': ee2e.linearize_slot_value_mr,
-                               'ordered_input': ee2e.linearize_slot_value_mr,
-                               'sentence_segmented_input': ee2e.linearize_slot_value_mr_seq,
-                               'lexicalisation': lambda lex_string: lex_string.strip().split(),
-                               'referring_expressions': lambda reg_string: reg_string.strip().split(),
-                               'raw_output': lambda text: text.strip().split()}
-
-    ee2e_corpus.print_summary_stats()
-    print("____________")
-    text_corpus = TextPipelineCorpus.from_existing(ee2e_corpus, mapping_functions=linearization_functions)
-    text_corpus.print_summary_stats()
-    text_corpus.print_sample(0, 100, 10)
-
-    psg = MultitaskSeq2SeqGenerator(text_corpus, config.model)
-    total_parameters = enunlg.util.count_parameters(psg.model)
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')
@@ -147,7 +134,7 @@ def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
     if config.mode == "train":
         train_multitask_seq2seq_attn(config)
     elif config.mode == "parameters":
-        show_parameter_stats(config)
+        train_multitask_seq2seq_attn(config, shortcircuit="parameters")
     else:
         raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
 

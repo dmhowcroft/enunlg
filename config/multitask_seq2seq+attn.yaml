@@ -1,9 +1,12 @@
+defaults:
+  - data/corpus: enriched-e2e_train
+  - _self_
 random_seed: 42
 pytorch:
   device: cpu
 model:
   name: multitask_seq2seq+attn
-  max_input_length: 107
+  max_input_length: 80
   encoder:
     embeddings:
       type: "torch"
