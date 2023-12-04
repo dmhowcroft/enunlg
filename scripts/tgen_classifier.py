@@ -146,8 +146,8 @@ def run_tgen(config: omegaconf.DictConfig):
                        torch.tensor(dec_emb, dtype=torch.float, device=DEVICE))
                       for enc_emb, dec_emb in zip(train_text_ints, train_mr_onehots)]
 
-    logging.info(f"Running {config.mode.train.num_epochs} epochs of {len(training_pairs)} iterations (looking at each training pair once per epoch)")
-    losses_for_plotting = tgen_classifier.train_iterations(training_pairs, config.mode.train.num_epochs)
+    logging.info(f"Running {config.train.num_epochs} epochs of {len(training_pairs)} iterations (looking at each training pair once per epoch)")
+    losses_for_plotting = tgen_classifier.train_iterations(training_pairs, config.train.num_epochs)
 
     torch.save(tgen_classifier.state_dict(), "trained-tgen_classifier-model.pt")
 

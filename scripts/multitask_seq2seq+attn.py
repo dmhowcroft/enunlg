@@ -92,7 +92,7 @@ def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
 
     psg = MultitaskSeq2SeqGenerator(text_corpus, config.model)
 
-    trainer = MultiDecoderSeq2SeqAttnTrainer(psg.model, config.mode.train, input_vocab=psg.vocabularies["raw_input"], output_vocab=psg.vocabularies["raw_output"])
+    trainer = MultiDecoderSeq2SeqAttnTrainer(psg.model, config.train, input_vocab=psg.vocabularies["raw_input"], output_vocab=psg.vocabularies["raw_output"])
 
     task_embeddings = []
     for idx in range(len(psg.input_embeddings)):

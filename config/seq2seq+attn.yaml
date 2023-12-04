@@ -22,12 +22,13 @@ model:
     cell: lstm
     num_hidden_dims: 64
 
-mode:
-  train:
-    num_epochs: 20
-    record_interval: 100
-    shuffle: True
-    batch_size: 1
-    optimizer: adam
-    learning_rate: 0.001
-    learning_rate_decay: 0.5
+mode: train
+
+train:
+  num_epochs: 20
+  record_interval: 100
+  shuffle: True
+  batch_size: 1
+  optimizer: adam
+  learning_rate: 0.001
+  learning_rate_decay: 0.5

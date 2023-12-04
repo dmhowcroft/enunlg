@@ -26,10 +26,11 @@ model:
     cell: lstm
     num_hidden_dims: 128
 
-mode:
-  train:
-    num_epochs: 20
-    batch_size: 1 # TGen used 20
-    optimizer: adam
-    learning_rate: 0.0005
-    learning_rate_decay: 0.5 # TGen used 0.0
+mode: train
+
+train:
+  num_epochs: 20
+  batch_size: 1 # TGen used 20
+  optimizer: adam
+  learning_rate: 0.0005
+  learning_rate_decay: 0.5 # TGen used 0.0

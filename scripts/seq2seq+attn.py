@@ -63,7 +63,7 @@ def seq2seq_attn_main(config: omegaconf.DictConfig):
     model = s2s.Seq2SeqAttn(input_vocab.size, output_vocab.size, model_config=config.model)
     logger.info(model)
 
-    trainer = enunlg.trainer.Seq2SeqAttnTrainer(model, training_config=config.mode.train, input_vocab=input_vocab, output_vocab=output_vocab)
+    trainer = enunlg.trainer.Seq2SeqAttnTrainer(model, training_config=config.train, input_vocab=input_vocab, output_vocab=output_vocab)
 
     trainer.train_iterations(train_embeddings, validation_pairs=dev_embeddings)
 
