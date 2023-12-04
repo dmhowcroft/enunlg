@@ -46,7 +46,7 @@ class BasicTrainer(object):
 
     def log_parameter_gradients(self, index):
         for param, value in self.model.named_parameters():
-            self.tb_writer.add_scalar(f"{self.__class__.__name__}-{param}-grad", torch.mean(value.grad), )
+            self.tb_writer.add_scalar(f"{self.__class__.__name__}-{param}-grad", torch.mean(value.grad), index)
 
     def train_iterations(self, *args, **kwargs):
         # TODO increase consistency between SCLSTM and TGen training so we can pull things up to this level
