@@ -102,7 +102,6 @@ def display_data_statistics(corpus, mr_int_mapper, token_int_mapper, onehot_enco
     enunlg.util.log_sequence(train_dec_embs[:10], indent="... ")
 
 
-@hydra.main(version_base=None, config_path='../config', config_name='tgen')
 def train_tgen(config: omegaconf.DictConfig):
     hydra_managed_output_dir = HydraConfig.get().runtime.output_dir
     logging.info(f"Logs and output will be written to {hydra_managed_output_dir}")
@@ -159,5 +158,56 @@ def train_tgen(config: omegaconf.DictConfig):
     plt.savefig(os.path.join(hydra_managed_output_dir, 'training-loss.png'))
 
 
+def show_parameter_stats(config: omegaconf.DictConfig) -> None:
+    hydra_managed_output_dir = HydraConfig.get().runtime.output_dir
+    logging.info(f"Logs and output will be written to {hydra_managed_output_dir}")
+    seed = config.random_seed
+    random.seed(seed)
+    torch.manual_seed(seed)
+    corpus = load_data_from_config(config.data)
+
+    corpus = preprocess_corpus_from_config(config.preprocessing, corpus)
+
+    logging.info("Preparing training data for PyTorch...")
+
+    # Prepare mr/input integer representation
+    mr_int_mapper, token_int_mapper = prep_tgen_integer_reps(corpus)
+    # Fixed input length is necessary for the TGen attention layer to work
+    train_enc_indices = [mr_int_mapper.get_ints_with_padding(mr, MAX_INPUT_LENGTH_IN_KV_PAIRS) for mr, _ in corpus]
+
+    # Prepare onehot encoding for semantic completeness scoring
+    multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in corpus]
+    onehot_encoder = onehot.DialogueActEmbeddings(multi_da_mrs, collapse_values=False)
+    train_enc_onehots = [onehot_encoder.embed_da(mr) for mr in multi_da_mrs]
+
+    # Prepare text/output integer representation
+    train_tokens = [text.strip().split() for _, text in corpus]
+    train_dec_indices = [token_int_mapper.get_ints_with_right_padding(text.split()) for _, text in corpus]
+
+    # Summarise the data
+    display_data_statistics(corpus, mr_int_mapper, token_int_mapper, onehot_encoder, train_enc_indices, train_dec_indices, train_enc_onehots, train_tokens)
+
+    # Prepare validation data
+    dev_config = omegaconf.DictConfig({'corpus': {'name': 'e2e', 'splits': ['devset']}})
+    dev_corpus = load_data_from_config(dev_config)
+    dev_corpus = preprocess_corpus_from_config(config.preprocessing, dev_corpus)
+    dev_enc_indices = [mr_int_mapper.get_ints_with_padding(mr, MAX_INPUT_LENGTH_IN_KV_PAIRS) for mr, _ in corpus]
+    dev_dec_indices = [token_int_mapper.get_ints_with_right_padding(text.split()) for _, text in dev_corpus]
+
+    logging.info(f"Preparing neural network using {config.pytorch.device=}")
+    DEVICE = config.pytorch.device
+    tgen = enunlg.encdec.tgen.TGenEncDec(mr_int_mapper, token_int_mapper, model_config=config.model).to(DEVICE)
+    total_params = enunlg.util.count_parameters(tgen)
+
+
+@hydra.main(version_base=None, config_path='../config', config_name='tgen')
+def launch_tgen(config: omegaconf.DictConfig) -> None:
+    if config.mode == "train":
+        train_tgen(config)
+    elif config.mode == "parameters":
+        show_parameter_stats(config)
+    else:
+        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+
 if __name__ == "__main__":
-    corpus = train_tgen()
+    launch_tgen()
