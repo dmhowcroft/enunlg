@@ -118,18 +118,18 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         :param teacher_forcing:
         :param teacher_forcing_sync_layers:
         """
-        logging.debug(enc_emb.size())
+        logger.debug(enc_emb.size())
         enc_outputs, enc_h_c_states = self.encode(enc_emb)
-        logging.debug(f"{len(enc_outputs)=}")
+        logger.debug(f"{len(enc_outputs)=}")
         for x in enc_outputs:
-            logging.debug(x.size())
-        logging.debug(f"{len(enc_h_c_states)=}")
+            logger.debug(x.size())
+        logger.debug(f"{len(enc_h_c_states)=}")
         for x in enc_h_c_states:
-            logging.debug(x[0].size(), x[1].size())
+            logger.debug(x[0].size(), x[1].size())
 
-        logging.debug(f"{len(dec_emb)=}")
+        logger.debug(f"{len(dec_emb)=}")
         for x in dec_emb:
-            logging.debug(x.size())
+            logger.debug(x.size())
 
         outputs = []
         for idx, (layer_name, enc_output, enc_h_c_state, layer_dec_emb) in enumerate(zip(self.layer_names[1:], enc_outputs, enc_h_c_states, dec_emb), 1):
@@ -252,7 +252,7 @@ class ShallowEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         :param teacher_forcing:
         :param teacher_forcing_sync_layers:
         """
-        logging.debug(enc_emb.size())
+        logger.debug(enc_emb.size())
         enc_output, enc_h_c_state = self.encode(enc_emb)
 
         outputs = []

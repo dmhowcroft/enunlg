@@ -106,11 +106,11 @@ class LSTMDecWithAttention(BasicDecoder):
 
     def forward(self, input_index, h_c_state, encoder_outputs):
         embedded_output = self.output_embeddings(input_index).view(1, 1, -1)
-        logging.debug(f"{embedded_output.size()=}")
+        logger.debug(f"{embedded_output.size()=}")
         attention_input = torch.cat((embedded_output, h_c_state[0]), dim=2)
         attention_weights = torch.nn.functional.softmax(self.attention(attention_input), dim=2)
-        logging.debug(f"{attention_weights.size()=}")
-        logging.debug(f"{encoder_outputs.size()=}")
+        logger.debug(f"{attention_weights.size()=}")
+        logger.debug(f"{encoder_outputs.size()=}")
         attention_applied = torch.bmm(attention_weights, encoder_outputs)
 
         output = torch.cat((embedded_output[0], attention_applied[0]), 1)

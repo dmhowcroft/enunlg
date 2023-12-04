@@ -17,10 +17,10 @@ class PipelineLookupGenerator(object):
     def predict(self, mr):
         curr_input = mr
         for layer_pair in self.modules:
-            logging.debug(layer_pair)
-            logging.debug(curr_input)
+            logger.debug(layer_pair)
+            logger.debug(curr_input)
             curr_output = self.modules[layer_pair].predict(curr_input)
-            logging.debug(curr_output)
+            logger.debug(curr_output)
             curr_input = curr_output
         return curr_output
 

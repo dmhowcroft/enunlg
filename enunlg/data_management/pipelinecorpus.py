@@ -124,8 +124,8 @@ class TextPipelineCorpus(PipelineCorpus):
             for item in self:
                 for layer in item.annotation_layers:
                     if len(item[layer]) > self._max_layer_length:
-                        logging.debug(f"New longest field, this time a {layer}")
-                        logging.debug(item[layer])
+                        logger.debug(f"New longest field, this time a {layer}")
+                        logger.debug(item[layer])
                         self._max_layer_length = len(item[layer])
                     if len(item[layer]) > self._layer_lengths[layer]:
                         self._layer_lengths[layer] = len(item[layer])

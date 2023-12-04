@@ -24,7 +24,7 @@ class PipelineSeq2SeqGenerator(object):
         self.layers = corpus.annotation_layers
         self.pipeline = corpus.layer_pairs
         self.max_length_any_layer = corpus.max_layer_length
-        logging.debug(f"{self.max_length_any_layer=}")
+        logger.debug(f"{self.max_length_any_layer=}")
         self.modules = {layer_pair: None for layer_pair in self.pipeline}
         self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: None for layer in self.layers} # type: ignore[misc]
         # There's definitely a cleaner way to do this, but we're lazy and hacky for a first prototype
@@ -88,10 +88,10 @@ class PipelineSeq2SeqGenerator(object):
         # TODO we will need to add padding to the output of each layer before it can be used as input for the next
         curr_input = mr
         for layer_pair in self.modules:
-            logging.debug(layer_pair)
-            logging.debug(curr_input)
+            logger.debug(layer_pair)
+            logger.debug(curr_input)
             curr_output = self.modules[layer_pair].generate(curr_input, max_length=self.max_length_any_layer)
-            logging.debug(curr_output)
+            logger.debug(curr_output)
             padded_output = [self.vocabularies[layer_pair[0]].padding_token_int] * (self.max_length_any_layer - len(curr_output) + 2) + curr_output
             curr_input = torch.tensor(padded_output)
         return curr_output

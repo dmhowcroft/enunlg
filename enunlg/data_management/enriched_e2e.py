@@ -67,7 +67,7 @@ class EnrichedE2ECorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
         if filename_or_list is not None:
             if isinstance(filename_or_list, list):
                 for filename in filename_or_list:
-                    logging.info(filename)
+                    logger.info(filename)
                     self.load_file(filename)
             elif isinstance(filename_or_list, str):
                 self.load_file(filename_or_list)
@@ -89,14 +89,14 @@ class PipelineCorpusMapper(object):
         self.annotation_layer_mappings = annotation_layer_mappings
 
     def __call__(self, input_corpus: Iterable) -> List:
-        logging.debug(f'successful call to {self.__class__.__name__} as a function (rather than a class)')
+        logger.debug(f'successful call to {self.__class__.__name__} as a function (rather than a class)')
         if isinstance(input_corpus, self.input_format):
-            logging.debug('passed the format check')
+            logger.debug('passed the format check')
             output_seq = []
             for entry in input_corpus:
                 output = []
                 for layer in self.annotation_layer_mappings:
-                    logging.debug(f"processing {layer}")
+                    logger.debug(f"processing {layer}")
                     output.append(self.annotation_layer_mappings[layer](entry))
                 # EnrichedE2E-formated datasets have up to N distinct targets for each single input
                 # This will show up as the first 'layer' having length 1 and subsequent layers having length > 1
@@ -108,7 +108,7 @@ class PipelineCorpusMapper(object):
                 for i in range(num_targets-1):
                     item = self.output_format({key: output[idx][i] for idx, key in enumerate(self.annotation_layer_mappings.keys())})
                     output_seq.append(item)
-                logging.debug(f"Num entries so far: {len(output_seq)}")
+                logger.debug(f"Num entries so far: {len(output_seq)}")
             return output_seq
         else:
             raise TypeError(f"Cannot run {self.__class__} on {type(input_corpus)}")
@@ -244,14 +244,14 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
         raise ValueError(f"`splits` can only contain a subset of {default_splits}. Found {splits}.")
     fns = []
     for split in splits:
-        logging.info(split)
+        logger.info(split)
         fns.extend([os.path.join(data_directory, split, fn) for fn in os.listdir(os.path.join(data_directory, split))])
 
     corpus: EnrichedE2ECorpusRaw = EnrichedE2ECorpusRaw(filename_or_list=fns)
     corpus.metadata = {'name': corpus_name,
                        'splits': splits,
                        'directory': data_directory}
-    logging.info(len(corpus))
+    logger.info(len(corpus))
 
     # tokenize texts
     for entry in corpus:
@@ -268,7 +268,7 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
     corpus: EnrichedE2ECorpus = EnrichedE2ECorpus(enriched_e2e_factory(corpus))
-    logging.info(f"Corpus contains {len(corpus)} entries.")
+    logger.info(f"Corpus contains {len(corpus)} entries.")
     return corpus
 
 
