@@ -83,6 +83,9 @@ def display_data_statistics(corpus, mr_int_mapper, token_int_mapper, onehot_enco
     text_lengths = [len(text) for text in train_tokens]
     logging.info(f"Text lengths: {min(text_lengths)} min, {max(text_lengths)} max, {sum(text_lengths)/len(text_lengths)} avg")
     logging.info(f"Our input vocabulary has {mr_int_mapper.max_index + 1} unique tokens")
+    logging.info(f"Our input contains {sum(mr_lengths)} tokens.")
+    logging.info(f"Our output vocabulary has {token_int_mapper.max_index + 1} unique tokens")
+    logging.info(f"Our output contains {sum(text_lengths)} tokens.")
     logging.info("Basic MR representations:")
     enunlg.util.log_sequence([mr for mr, _ in corpus[:10]], indent="... ")
     logging.info("The same MRs as lists of vocab indices:")
