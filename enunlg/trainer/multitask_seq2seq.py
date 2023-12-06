@@ -135,3 +135,23 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         else:
             logger.info("Scores have not improved recently on the validation set, so we are stopping training now.")
             return True
+
+class MultitaskTransformerTrainer(MultiDecoderSeq2SeqAttnTrainer):
+    def sample_generations_and_references(self, pairs) -> Tuple[List[str], List[str]]:
+        best_outputs = []
+        ref_outputs = []
+        for in_indices, out_indices in pairs:
+            curr_outputs = self.model.generate(in_indices)
+            best_outputs.append(self.output_vocab.pretty_string(curr_outputs))
+            ref_outputs.append(self.output_vocab.pretty_string(out_indices.tolist()))
+        return best_outputs, ref_outputs
+
+    def _log_examples_this_interval(self, pairs):
+        if self.input_vocab is None and self.output_vocab is None:
+            super()._log_examples_this_interval(pairs)
+        else:
+            for i, o in pairs:
+                logger.info("An example!")
+                logger.info(f"Input:  {self.input_vocab.pretty_string(i.tolist())}")
+                logger.info(f"Ref:    {self.output_vocab.pretty_string(o.tolist())}")
+                logger.info(f"Output: {self.output_vocab.pretty_string(self.model.generate(i))}")
