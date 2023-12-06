@@ -80,16 +80,16 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
         print(", ".join(self.annotation_layers))
         print(f"num entries: {len(self)}")
         num_entries_per_layer = defaultdict(int)
-        layer_stats = defaultdict(int)
+        layer_lengths = defaultdict(list)
         layer_types = defaultdict(set)
         for layer in self.annotation_layers:
             for entry in self:
-                layer_stats[layer] += len(entry[layer])
+                layer_lengths[layer].append(len(entry[layer]))
                 layer_types[layer].update(entry[layer])
                 num_entries_per_layer[layer] += 1
-        for layer in layer_stats:
-            print(f"{layer}:\t\t{layer_stats[layer] / num_entries_per_layer[layer]} ({num_entries_per_layer[layer]})")
-            print(f"    with {len(layer_types[layer])} unique tokens.")
+        for layer in layer_lengths:
+            print(f"{layer}:\t\t{sum(layer_lengths[layer])/num_entries_per_layer[layer]:.2f} [{min(layer_lengths[layer])},{max(layer_lengths[layer])}]")
+            print(f"    with {len(layer_types[layer])} types across {sum(layer_lengths[layer])} tokens.")
 
     def print_sample(self, range_start=0, range_end=10, subsample=None):
         if random is None:
