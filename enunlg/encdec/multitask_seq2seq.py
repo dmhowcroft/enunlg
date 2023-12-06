@@ -196,6 +196,7 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         with torch.no_grad():
             return self.forward_e2e(enc_emb, max_length)
 
+
 class ShallowEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
     def __init__(self, layer_names: List[str], layer_vocab_sizes: List[int], model_config: omegaconf.DictConfig):
         """
