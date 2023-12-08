@@ -11,7 +11,7 @@ def log_sequence(seq, indent="") -> None:
         logging.info(f"{indent}{element}")
 
 
-def count_parameters(model):
+def count_parameters(model, log_table=True, print_table=False):
     """
     Based on https://stackoverflow.com/questions/49201236/check-the-total-number-of-parameters-in-a-pytorch-model,
     forwarded to me by Jonas Groschwitz
@@ -24,8 +24,12 @@ def count_parameters(model):
         params = parameter.numel()
         table.add_row([name, params])
         total_params += params
-    logging.info(table)
-    logging.info(f"Total Trainable Params: {total_params}")
+    if log_table:
+        logging.info(table)
+        logging.info(f"Total Trainable Params: {total_params}")
+    if print_table:
+        print(table)
+        print(f"Total Trainable Params: {total_params}")
     return total_params
 
 
