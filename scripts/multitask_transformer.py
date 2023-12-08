@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import logging
 import os
@@ -16,7 +16,7 @@ import enunlg.encdec.multitask_seq2seq
 import enunlg.util
 import enunlg.vocabulary
 
-logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
+logger = logging.getLogger('enunlg-scripts.multitask_transformer')
 
 SUPPORTED_DATASETS = {"enriched-e2e"}
 
@@ -78,9 +78,9 @@ class MultitaskTransformer(torch.nn.Transformer):
         """Only implementing greedy for now."""
         with torch.no_grad():
             linear_preds = self.forward(enc_emb, enc_emb)
-            print(f"{linear_preds.size()=}")
+            # print(f"{linear_preds.size()=}")
             dec_outputs = torch.nn.functional.log_softmax(linear_preds.squeeze(0), dim=0)
-            print(f"{dec_outputs.size()=}")
+            # print(f"{dec_outputs.size()=}")
             outputs = []
             for dec_output in dec_outputs:
                 # print(f"{dec_output.size()=}")
@@ -105,13 +105,13 @@ class MultitaskTransformerGenerator(object):
         self.layers: List[str] = corpus.annotation_layers
         self.max_length_any_layer = corpus.max_layer_length
         logger.debug(f"{self.max_length_any_layer=}")
-        self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: enunlg.vocabulary.TokenVocabulary(corpus.items_by_layer(layer)) for layer in self.layers} # type: ignore[misc]
+        self.vocabulary: Dict[str, enunlg.vocabulary.TokenVocabulary] = enunlg.vocabulary.TokenVocabulary(corpus.all_item_layer_iterator())
         # There's definitely a cleaner way to do this, but we're lazy and hacky for a first prototype
         # We end up with a list of embeddings and a dict of list of embeddings to target
-        self.input_embeddings = [torch.tensor(self.vocabularies[self.input_layer_name].get_ints_with_right_padding(item, 126), dtype=torch.long) for item in corpus.items_by_layer(self.input_layer_name)]
-        self.output_embeddings = {layer: [torch.tensor(self.vocabularies[layer].get_ints_with_right_padding(item, 126), dtype=torch.long) for item in corpus.items_by_layer(layer)] for layer in self.decoder_target_layer_names}
+        self.input_embeddings = [torch.tensor(self.vocabulary.get_ints_with_right_padding(item, 126), dtype=torch.long) for item in corpus.items_by_layer(self.input_layer_name)]
+        self.output_embeddings = {layer: [torch.tensor(self.vocabulary.get_ints_with_right_padding(item, 126), dtype=torch.long) for item in corpus.items_by_layer(layer)] for layer in self.decoder_target_layer_names}
 
-        self.model = MultitaskTransformer(6000)
+        self.model = MultitaskTransformer(self.vocabulary.size)
 
     @property
     def input_layer_name(self) -> str:
@@ -172,11 +172,11 @@ def train_multitask_transformer(config: omegaconf.DictConfig, shortcircuit=None)
         task_embeddings.append([generator.output_embeddings[layer][idx] for layer in generator.decoder_target_layer_names])
 
     e2e_training_pairs = list(zip(generator.input_embeddings, generator.output_embeddings['raw_output']))
-    e2e_training_pairs = e2e_training_pairs[:100]
+    # e2e_training_pairs = e2e_training_pairs[:100]
     # multitask_training_pairs = list(zip(generator.input_embeddings, task_embeddings))
 
 
-    trainer = MultitaskTransformerTrainer(generator.model, config.train, input_vocab=generator.vocabularies["raw_input"], output_vocab=generator.vocabularies["raw_output"])
+    trainer = MultitaskTransformerTrainer(generator.model, config.train, input_vocab=generator.vocabulary, output_vocab=generator.vocabulary)
     nine_to_one_split_idx = int(len(e2e_training_pairs) * 0.9)
     # losses_for_plotting = trainer.train_iterations(multitask_training_pairs[:90], multitask_training_pairs[90:100])
     losses_for_plotting = trainer.train_iterations(e2e_training_pairs[:nine_to_one_split_idx], e2e_training_pairs[nine_to_one_split_idx:])
