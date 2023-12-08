@@ -1,9 +1,7 @@
 import collections
 import logging
-import os
 import random
 
-import omegaconf
 import torch
 
 RegexRule = collections.namedtuple('RegexRule', ("match_expression", "replacement_expression"))
@@ -40,13 +38,6 @@ def log_list_of_tensors_sizes(list_of_tensors, level=logging.DEBUG) -> None:
 def log_sequence(seq, indent="") -> None:
     for element in seq:
         logging.info(f"{indent}{element}")
-
-
-def save_config(config: omegaconf.DictConfig, hydra_config: omegaconf.DictConfig) -> None:
-    with open(os.path.join(hydra_config.runtime.output_dir, 'hydra_config.yaml'), 'w') as hydra_file:
-        hydra_file.write(omegaconf.OmegaConf.to_yaml(hydra_config))
-    with open(os.path.join(hydra_config.runtime.output_dir, 'run_config.yaml'), 'w') as config_file:
-        config_file.write(omegaconf.OmegaConf.to_yaml(config))
 
 
 def set_random_seeds(seed) -> None:
