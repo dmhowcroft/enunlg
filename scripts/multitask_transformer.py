@@ -95,22 +95,15 @@ class MultitaskTransformer(torch.nn.Transformer):
 class MultitaskTransformerGenerator(object):
     def __init__(self, corpus: TextPipelineCorpus, model_config: omegaconf.DictConfig):
         """
-        Create a multi-decoder seq2seq+attn model based on `corpus`.
-
-        The first layer will be treated as input, subsequent layers will be treated as targets for decoding.
-        At training time we use all the decoding layers, but at inference time we only decode at the final layer.
+        Create a multitask transformer model based on `corpus`.
 
         :param corpus:
         """
         self.layers: List[str] = corpus.annotation_layers
-        self.max_length_any_layer = corpus.max_layer_length
-        logger.debug(f"{self.max_length_any_layer=}")
         self.vocabulary: Dict[str, enunlg.vocabulary.TokenVocabulary] = enunlg.vocabulary.TokenVocabulary(corpus.all_item_layer_iterator())
-        # There's definitely a cleaner way to do this, but we're lazy and hacky for a first prototype
-        # We end up with a list of embeddings and a dict of list of embeddings to target
-        self.input_embeddings = [torch.tensor(self.vocabulary.get_ints_with_right_padding(item, 126), dtype=torch.long) for item in corpus.items_by_layer(self.input_layer_name)]
-        self.output_embeddings = {layer: [torch.tensor(self.vocabulary.get_ints_with_right_padding(item, 126), dtype=torch.long) for item in corpus.items_by_layer(layer)] for layer in self.decoder_target_layer_names}
-
+        # Store some basic information about the corpus
+        self.max_length_any_layer = corpus.max_layer_length
+        self.corpus_metadata = corpus.metadata
         self.model = MultitaskTransformer(self.vocabulary.size)
 
     @property
@@ -133,9 +126,17 @@ class MultitaskTransformerGenerator(object):
         return self.model.generate(mr)
 
 
-def set_random_seeds(seed) -> None:
-    random.seed(seed)
-    torch.manual_seed(seed)
+def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
+    layer_names = list(vocabularies.keys())
+    input_layer_name = layer_names[0]
+    if uniform_max_length:
+        max_length_any_layer = corpus.max_layer_length
+    input_embeddings = [torch.tensor(vocabularies[input_layer_name].get_ints_with_left_padding(item, max_length_any_layer),
+                                     dtype=torch.long) for item in corpus.items_by_layer(input_layer_name)]
+    output_embeddings = {
+        layer_name: [torch.tensor(vocabularies[layer_name].get_ints(item), dtype=torch.long) for item in
+                corpus.items_by_layer(layer_name)] for layer_name in layer_names[1:]}
+    return input_embeddings, output_embeddings
 
 
 def load_data_from_config(data_config) -> ee2e.EnrichedE2ECorpus:
@@ -149,9 +150,7 @@ def load_data_from_config(data_config) -> ee2e.EnrichedE2ECorpus:
 
 
 def train_multitask_transformer(config: omegaconf.DictConfig, shortcircuit=None):
-    hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
-    set_random_seeds(config.random_seed)
+    enunlg.util.set_random_seeds(config.random_seed)
 
     ee2e_corpus = load_data_from_config(config.data)
     ee2e_corpus.print_summary_stats()
@@ -166,26 +165,32 @@ def train_multitask_transformer(config: omegaconf.DictConfig, shortcircuit=None)
     if shortcircuit == 'parameters':
         exit()
 
-
+    input_embeddings, output_embeddings = prep_embeddings(text_corpus, generator.vocabulary)
     task_embeddings = []
-    for idx in range(len(generator.input_embeddings)):
-        task_embeddings.append([generator.output_embeddings[layer][idx] for layer in generator.decoder_target_layer_names])
+    for idx in range(len(input_embeddings)):
+        task_embeddings.append([output_embeddings[layer][idx] for layer in generator.layers[1:]])
 
-    e2e_training_pairs = list(zip(generator.input_embeddings, generator.output_embeddings['raw_output']))
+    e2e_training_pairs = list(zip(input_embeddings, output_embeddings['raw_output']))
     # e2e_training_pairs = e2e_training_pairs[:100]
     # multitask_training_pairs = list(zip(generator.input_embeddings, task_embeddings))
 
 
     trainer = MultitaskTransformerTrainer(generator.model, config.train, input_vocab=generator.vocabulary, output_vocab=generator.vocabulary)
     nine_to_one_split_idx = int(len(e2e_training_pairs) * 0.9)
-    # losses_for_plotting = trainer.train_iterations(multitask_training_pairs[:90], multitask_training_pairs[90:100])
-    losses_for_plotting = trainer.train_iterations(e2e_training_pairs[:nine_to_one_split_idx], e2e_training_pairs[nine_to_one_split_idx:])
+    # trainer.train_iterations(multitask_training_pairs, multitask_training_pairs)
+    trainer.train_iterations(e2e_training_pairs[:nine_to_one_split_idx], e2e_training_pairs[nine_to_one_split_idx:])
 
-    torch.save(generator.model.state_dict(), os.path.join(hydra_managed_output_dir, "trained-tgen-model.pt"))
+    torch.save(generator, os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.pt"))
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')
 def multitask_transformer_main(config: omegaconf.DictConfig):
+    hydra_config = hydra.core.hydra_config.HydraConfig.get()
+    hydra_managed_output_dir = hydra_config.runtime.output_dir
+    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
+    with omegaconf.open_dict(config):
+        config.output_dir = hydra_managed_output_dir
+
     if config.mode == "train":
         train_multitask_transformer(config)
     elif config.mode == "parameters":
