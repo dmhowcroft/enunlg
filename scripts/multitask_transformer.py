@@ -4,11 +4,8 @@ import logging
 import os
 import random
 
-import matplotlib.pyplot as plt
-
 import omegaconf
 import hydra
-import seaborn as sns
 import torch
 
 from enunlg.data_management.pipelinecorpus import TextPipelineCorpus
@@ -185,9 +182,6 @@ def train_multitask_transformer(config: omegaconf.DictConfig, shortcircuit=None)
     losses_for_plotting = trainer.train_iterations(e2e_training_pairs[:nine_to_one_split_idx], e2e_training_pairs[nine_to_one_split_idx:])
 
     torch.save(generator.model.state_dict(), os.path.join(hydra_managed_output_dir, "trained-tgen-model.pt"))
-
-    sns.lineplot(data=losses_for_plotting)
-    plt.savefig(os.path.join(hydra_managed_output_dir, 'training-loss.png'))
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')

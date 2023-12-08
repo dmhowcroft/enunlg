@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "enunlg"
-version = "0.1.0"
+version = "0.2.0"
 description = "Edinburgh Napier University package for Natural Language Generation"
 authors = ["David M. Howcroft <dave.howcroft@gmail.com>"]
 
@@ -10,7 +10,6 @@ regex = "^2021.4.4"
 numpy = "^1.20.3"
 bidict = "^0.21.2"
 python-box = "^5.3.0"
-seaborn = "^0.12.2"
 jupyter = "^1.0.0"
 ipython = "^7.25.0"
 ipymd = "^0.1.3"
@@ -29,24 +28,19 @@ torch = {url="https://download.pytorch.org/whl/cpu/torch-1.9.1%2Bcpu-cp39-cp39-l
 # Torch 1.9.1 on CPU-only for Python 3.9 on 64-bit Linux with CUDA 11
 #torch = {url="https://download.pytorch.org/whl/cu111/torch-1.9.0%2Bcu111-cp39-cp39-linux_x86_64.whl"}
 hydra-core = "^1.1.1"
-pytorch-lightning = "^1.5.4"
 prettytable = "^3.4.1"
-matplotlib = "^3.6.2"
-scikit-image = "^0.19.3"
 future = "^0.18.2"
-pytorch-beam-search = "^1.2.2"
 sacrebleu = "^2.3.1"
-scalene = "^1.5.13"
 lxml = "^4.9.2"
 xsdata = "^23.8"
 tensorboard = "^2.15.1"
 setuptools = "59.5.0"
 
-[tool.poetry.dev-dependencies]
-pytest = "^5.2"
 
 [tool.poetry.group.dev.dependencies]
 mypy = "^1.6.1"
+pytest = "^5.2"
+scalene = "^1.5.13"
 types-regex = "^2023.10.3.0"
 types-lxml = "^2023.10.21"
 

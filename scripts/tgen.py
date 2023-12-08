@@ -9,9 +9,7 @@ import random
 from hydra.core.hydra_config import HydraConfig
 
 import hydra
-import matplotlib.pyplot as plt
 import omegaconf
-import seaborn as sns
 import torch
 
 import enunlg.trainer.tgen
@@ -155,9 +153,6 @@ def train_tgen(config: omegaconf.DictConfig):
     trainer = enunlg.trainer.tgen.TGenTrainer(tgen, training_config=config.train)
     losses_for_plotting = trainer.train_iterations(training_pairs, validation_pairs)
     torch.save(tgen.state_dict(), os.path.join(hydra_managed_output_dir, "trained-tgen-model.pt"))
-
-    sns.lineplot(data=losses_for_plotting)
-    plt.savefig(os.path.join(hydra_managed_output_dir, 'training-loss.png'))
 
 
 def show_parameter_stats(config: omegaconf.DictConfig) -> None:

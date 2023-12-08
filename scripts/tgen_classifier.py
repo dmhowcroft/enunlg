@@ -3,10 +3,8 @@
 import logging
 
 import hydra
-import matplotlib.pyplot as plt
 import omegaconf
 import regex
-import seaborn as sns
 import torch
 
 import enunlg.data_management.e2e_challenge as e2e
@@ -152,9 +150,6 @@ def run_tgen(config: omegaconf.DictConfig):
     losses_for_plotting = tgen_classifier.train_iterations(training_pairs, config.train.num_epochs)
 
     torch.save(tgen_classifier.state_dict(), "trained-tgen_classifier-model.pt")
-
-    sns.lineplot(data=losses_for_plotting)
-    plt.savefig('training-loss.tgen_classifier.png')
 
 
 if __name__ == "__main__":
