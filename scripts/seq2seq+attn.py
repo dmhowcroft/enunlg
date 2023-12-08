@@ -1,16 +1,23 @@
 import logging
+import os
 import random
 
 import omegaconf
 import hydra
 import torch
 
+from sacrebleu import metrics as sm
+
 import enunlg.encdec.seq2seq as s2s
 import enunlg.trainer
 import enunlg.trainer.seq2seq
+import enunlg.util
 import enunlg.vocabulary
 
 logger = logging.getLogger(__name__)
+
+LOWERCASE = "abcdefghijklmnopqrstuvwxyz"
+UPPERCASE = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 
 class NNGenerator(object):
@@ -31,6 +38,21 @@ class NNGenerator(object):
         pass
 
 
+def generate_uppercasing_data(num_entries):
+    items = []
+    for _ in range(10000):
+        lb = random.choice(range(26))
+        ub = random.choice(range(lb, 26))
+        items.append((" ".join(LOWERCASE[lb:ub]).split(),
+                      " ".join(UPPERCASE[lb:ub]).split()))
+    return items
+
+
+def prep_embeddings(vocab1, vocab2, tokens):
+    return [(torch.tensor(vocab1.get_ints_with_left_padding(x[0], 26-2), dtype=torch.long),
+             torch.tensor(vocab2.get_ints(x[1]), dtype=torch.long)) for x in tokens]
+
+
 @hydra.main(version_base=None, config_path='../config', config_name='seq2seq+attn')
 def seq2seq_attn_main(config: omegaconf.DictConfig):
     hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
@@ -39,30 +61,21 @@ def seq2seq_attn_main(config: omegaconf.DictConfig):
     random.seed(seed)
     torch.manual_seed(seed)
 
-    # Prepare mock data
-    lowercase = "abcdefghijklmnopqrstuvwxyz"
-    uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    items = []
-    for _ in range(10000):
-        lb = random.choice(range(26))
-        ub = random.choice(range(lb, 26))
-        items.append((" ".join(lowercase[lb:ub]).split(),
-                      " ".join(uppercase[lb:ub]).split()))
+    items = generate_uppercasing_data(10000)
     train, dev, test = items[:8000], items[8000:9000], items[9000:]
 
     logger.info(len(train))
 
-    input_vocab = enunlg.vocabulary.TokenVocabulary(lowercase)
-    output_vocab = enunlg.vocabulary.TokenVocabulary(uppercase)
+    input_vocab = enunlg.vocabulary.TokenVocabulary(LOWERCASE)
+    output_vocab = enunlg.vocabulary.TokenVocabulary(UPPERCASE)
 
-    def prep_embeddings(vocab1, vocab2, tokens):
-        return [(torch.tensor(vocab1.get_ints_with_left_padding(x[0], 26-2), dtype=torch.long),
-                 torch.tensor(vocab2.get_ints(x[1]), dtype=torch.long)) for x in tokens]
-    train_embeddings = prep_embeddings(input_vocab, output_vocab, train)
+   train_embeddings = prep_embeddings(input_vocab, output_vocab, train)
     dev_embeddings = prep_embeddings(input_vocab, output_vocab, dev)
 
     model = s2s.Seq2SeqAttn(input_vocab.size, output_vocab.size, model_config=config.model)
-    logger.info(model)
+    total_parameters = enunlg.util.count_parameters(model)
+    if shortcircuit == 'parameters':
+        exit()
 
     trainer = enunlg.trainer.seq2seq.Seq2SeqAttnTrainer(model, training_config=config.train, input_vocab=input_vocab, output_vocab=output_vocab)
 
