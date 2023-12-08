@@ -133,3 +133,8 @@ class TextPipelineCorpus(PipelineCorpus):
 
     def layer_length(self, layer_name: str) -> int:
         return self._layer_lengths[layer_name]
+
+    def all_item_layer_iterator(self):
+        for item in self:
+            for layer in self.annotation_layers:
+                yield item[layer]
