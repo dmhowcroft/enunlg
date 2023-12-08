@@ -95,8 +95,6 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     enunlg.util.set_random_seeds(config.random_seed)
 
     ee2e_corpus = load_data_from_config(config.data)
-    for entry in ee2e_corpus[:6]:
-        logger.info(entry)
     ee2e_corpus.print_summary_stats()
     print("____________")
 
@@ -161,6 +159,7 @@ def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
     logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
     with omegaconf.open_dict(config):
         config.output_dir = hydra_managed_output_dir
+
     if config.mode == "train":
         train_multitask_seq2seq_attn(config)
     elif config.mode == "parameters":
