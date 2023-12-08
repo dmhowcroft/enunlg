@@ -55,6 +55,17 @@ def prep_embeddings(vocab1, vocab2, tokens):
 
 @hydra.main(version_base=None, config_path='../config', config_name='seq2seq+attn')
 def seq2seq_attn_main(config: omegaconf.DictConfig):
+    if config.mode == "train":
+        train_seq2seq_attn(config)
+    elif config.mode == "test":
+        test_seq2seq_attn(config)
+    elif config.mode == "parameters":
+        train_seq2seq_attn(config, shortcircuit="parameters")
+    else:
+        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+
+
+def train_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None):
     hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
     logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
     seed = config.random_seed
@@ -80,6 +91,43 @@ def seq2seq_attn_main(config: omegaconf.DictConfig):
     trainer = enunlg.trainer.seq2seq.Seq2SeqAttnTrainer(model, training_config=config.train, input_vocab=input_vocab, output_vocab=output_vocab)
 
     trainer.train_iterations(train_embeddings, validation_pairs=dev_embeddings)
+
+    torch.save(model.state_dict(), os.path.join(hydra_managed_output_dir, 'seq2seq+attn.pt'))
+
+
+def test_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None):
+    hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
+    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
+    seed = config.random_seed
+    random.seed(seed)
+    torch.manual_seed(seed)
+
+    items = generate_uppercasing_data(10000)
+    _, _, test = items[:8000], items[8000:9000], items[9000:]
+
+    input_vocab = enunlg.vocabulary.TokenVocabulary(LOWERCASE)
+    output_vocab = enunlg.vocabulary.TokenVocabulary(UPPERCASE)
+
+    test_embeddings = prep_embeddings(input_vocab, output_vocab, test)
+
+    model = torch.load(config.test.model_file)
+    total_parameters = enunlg.util.count_parameters(model)
+    if shortcircuit == 'parameters':
+        exit()
+
+    test_input = [x[0] for x in test_embeddings]
+    test_ref = [x[1] for x in test_embeddings]
+    outputs = [model.generate(embedding) for embedding in test_input]
+
+    best_outputs = [" ".join(output_vocab.get_tokens([int(x) for x in output])) for output in outputs]
+    ref_outputs = [" ".join(output_vocab.get_tokens([int(x) for x in output])) for output in test_ref]
+
+    # Calculate BLEU compared to targets
+    bleu = sm.BLEU()
+    # We only have one reference per output
+    bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
+    logger.info(f"Current score: {bleu_score}")
+
 
 
 if __name__ == "__main__":

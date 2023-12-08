@@ -32,3 +32,6 @@ train:
   optimizer: adam
   learning_rate: 0.001
   learning_rate_decay: 0.5
+
+test:
+  model_file: seq2seq+attn.pt
