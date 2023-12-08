@@ -55,6 +55,11 @@ def prep_embeddings(vocab1, vocab2, tokens):
 
 @hydra.main(version_base=None, config_path='../config', config_name='seq2seq+attn')
 def seq2seq_attn_main(config: omegaconf.DictConfig):
+    hydra_config = hydra.core.hydra_config.HydraConfig.get()
+    hydra_managed_output_dir = hydra_config.runtime.output_dir
+    with omegaconf.open_dict(config):
+        config.output_dir = hydra_managed_output_dir
+    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
     if config.mode == "train":
         train_seq2seq_attn(config)
     elif config.mode == "test":
@@ -66,11 +71,7 @@ def seq2seq_attn_main(config: omegaconf.DictConfig):
 
 
 def train_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None):
-    hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
-    seed = config.random_seed
-    random.seed(seed)
-    torch.manual_seed(seed)
+    enunlg.util.set_random_seeds(config.random_seed)
 
     items = generate_uppercasing_data(10000)
     train, dev, test = items[:8000], items[8000:9000], items[9000:]
@@ -80,7 +81,7 @@ def train_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None):
     input_vocab = enunlg.vocabulary.TokenVocabulary(LOWERCASE)
     output_vocab = enunlg.vocabulary.TokenVocabulary(UPPERCASE)
 
-   train_embeddings = prep_embeddings(input_vocab, output_vocab, train)
+    train_embeddings = prep_embeddings(input_vocab, output_vocab, train)
     dev_embeddings = prep_embeddings(input_vocab, output_vocab, dev)
 
     model = s2s.Seq2SeqAttn(input_vocab.size, output_vocab.size, model_config=config.model)
@@ -92,15 +93,11 @@ def train_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None):
 
     trainer.train_iterations(train_embeddings, validation_pairs=dev_embeddings)
 
-    torch.save(model.state_dict(), os.path.join(hydra_managed_output_dir, 'seq2seq+attn.pt'))
+    torch.save(model, os.path.join(config.output_dir, 'seq2seq+attn.pt'))
 
 
 def test_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None):
-    hydra_managed_output_dir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
-    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
-    seed = config.random_seed
-    random.seed(seed)
-    torch.manual_seed(seed)
+    enunlg.util.set_random_seeds(config.random_seed)
 
     items = generate_uppercasing_data(10000)
     _, _, test = items[:8000], items[8000:9000], items[9000:]
