@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional
+from typing import List, Tuple, Optional, TYPE_CHECKING
 
 import logging
 import random
@@ -12,6 +12,10 @@ import torch
 from enunlg.trainer.base import BasicTrainer
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
+
+if TYPE_CHECKING:
+    import enunlg.encdec.seq2seq
+    import enunlg.encdec.tgen
 
 
 class Seq2SeqAttnTrainer(BasicTrainer):
