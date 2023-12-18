@@ -2,9 +2,12 @@ from typing import Dict, Iterable, List, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from enunlg.data_management.webnlg import RDFTriple
 
+import os
 import logging
+import tarfile
 
 import bidict
+import omegaconf
 
 logger = logging.getLogger(__name__)
 
@@ -229,6 +232,7 @@ class IntegralInformVocabulary(IntegralDialogueActVocabulary):
 
 
 class TokenVocabulary(object):
+    STATE_ATTRIBUTES = ("dataset", "_token2int", "_max_index", "_filler")
     def __init__(self, dataset: Iterable[Iterable[str]]) -> None:
         """
 
@@ -247,6 +251,52 @@ class TokenVocabulary(object):
         self._max_index = 4
         self._filler = {0}
         self._init_vocabulary()
+
+    def _save_classname_to_dir(self, directory_path):
+        with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
+            class_file.write(self.__class__.__name__)
+
+    def save(self, filepath, tgz=False):
+        os.mkdir(filepath)
+        self._save_classname_to_dir(filepath)
+        state = {}
+        for attribute in self.STATE_ATTRIBUTES:
+            curr_obj = getattr(self, attribute)
+            save_method = getattr(curr_obj, 'save', None)
+            if attribute == "_token2int":
+                state[attribute] = dict(curr_obj)
+            elif save_method is None:
+                if isinstance(curr_obj, set):
+                    state[attribute] = tuple(curr_obj)
+                else:
+                    state[attribute] = curr_obj
+            else:
+                state[attribute] = f"./{attribute}"
+                curr_obj.save(f"{filepath}/{attribute}")
+        with open(os.path.join(filepath, "_save_state.yaml"), 'w') as state_file:
+            state = omegaconf.OmegaConf.create(state)
+            omegaconf.OmegaConf.save(state, state_file)
+        if tgz:
+            with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
+                out_file.add(filepath, arcname=os.path.basename(filepath))
+
+    def __dir__(self):
+        return self.STATE_ATTRIBUTES
+
+    def __getstate__(self):
+        state = {attribute: self.__getattribute__(attribute)
+                 for attribute in self.STATE_ATTRIBUTES}
+        state['__class__'] = self.__class__.__name__
+        return state
+
+    @classmethod
+    def __setstate__(cls, state):
+        class_name = state["__class__"]
+        assert class_name == cls.__name__
+        new_generator = cls.__new__(cls)
+        for attribute in cls.STATE_ATTRIBUTES:
+            new_generator.__setattr__(attribute, state[attribute])
+        return new_generator
 
     @property
     def tokens(self):

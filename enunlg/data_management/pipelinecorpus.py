@@ -47,6 +47,7 @@ AnyPipelineItemSubclass = TypeVar("AnyPipelineItemSubclass", bound=PipelineItem)
 
 
 class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
+    STATE_ATTRIBUTES = ("metadata", "annotation_layers")
     def __init__(self, seq: Optional[List[AnyPipelineItemSubclass]] = None, metadata: Optional[dict] = None):
         """Each item in a PipelineCorpus is a single entry with annotations for each stage of the pipeline."""
         if metadata is None:
@@ -60,6 +61,23 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
             assert all([item.annotation_layers == layer_names for item in seq]), f"Expected all items in seq to have the layers: {layer_names}"
             self.annotation_layers = layer_names
         super(PipelineCorpus, self).__init__(seq)
+
+    def __getstate__(self):
+        state = {attribute: self.__getattribute__(attribute)
+                 for attribute in self.STATE_ATTRIBUTES}
+        state['__class__'] = self.__class__.__name__
+        state['_content'] = [x for x in self]
+        return state
+
+    @classmethod
+    def __setstate__(cls, state: Dict[str, Any]):
+        class_name = state["__class__"]
+        assert class_name == cls.__name__
+        new_generator = cls.__new__(cls)
+        for attribute in cls.STATE_ATTRIBUTES:
+            new_generator.__setattr__(attribute, state[attribute])
+        new_generator.append(state['_content'])
+        return new_generator
 
     @property
     def layer_pairs(self):
@@ -105,6 +123,8 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
 
 
 class TextPipelineCorpus(PipelineCorpus):
+    STATE_ATTRIBUTES = tuple(list(PipelineCorpus.STATE_ATTRIBUTES) + ["_max_layer_length", "_layer_lengths"])
+
     def __init__(self, seq: Optional[List[AnyPipelineItemSubclass]] = None, metadata: Optional[dict] = None):
         super(TextPipelineCorpus, self).__init__(seq, metadata)
         self._max_layer_length = -1

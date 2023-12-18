@@ -1,7 +1,8 @@
 import logging
 import os
+import tarfile
 
-from typing import List
+from typing import Any, Dict, List
 
 import omegaconf
 import hydra
@@ -32,6 +33,7 @@ LINEARIZATION_FUNCTIONS = {'raw_input': ee2e.linearize_slot_value_mr,
 
 
 class MultitaskSeq2SeqGenerator(object):
+    STATE_ATTRIBUTES = ('layers', 'vocabularies', 'max_length_any_layer', 'corpus_metadata', 'model')
     def __init__(self, corpus: enunlg.data_management.pipelinecorpus.TextPipelineCorpus, model_config: omegaconf.DictConfig):
         """
         Create a multi-decoder seq2seq+attn model based on `corpus`.
@@ -42,7 +44,7 @@ class MultitaskSeq2SeqGenerator(object):
         :param corpus:
         """
         self.layers: List[str] = corpus.annotation_layers
-        self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: enunlg.vocabulary.TokenVocabulary(corpus.items_by_layer(layer)) for layer in self.layers} # type: ignore[misc]
+        self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: enunlg.vocabulary.TokenVocabulary(list(corpus.items_by_layer(layer))) for layer in self.layers} # type: ignore[misc]
         # Store some basic information about the corpus
         self.max_length_any_layer = corpus.max_layer_length
         self.corpus_metadata = corpus.metadata
@@ -66,6 +68,38 @@ class MultitaskSeq2SeqGenerator(object):
 
     def predict(self, mr):
         return self.model.generate(mr)
+
+    def _save_classname_to_dir(self, directory_path):
+        with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
+            class_file.write(self.__class__.__name__)
+
+    def save(self, filepath, tgz=True):
+        os.mkdir(filepath)
+        self._save_classname_to_dir(filepath)
+        state = {}
+        for attribute in self.STATE_ATTRIBUTES:
+            curr_obj = getattr(self, attribute)
+            save_method = getattr(curr_obj, 'save', None)
+            print(curr_obj)
+            print(save_method)
+            if attribute == "vocabularies":
+                # Special handling for the vocabularies
+                state[attribute] = {}
+                os.mkdir(f"{filepath}/{attribute}")
+                for key in curr_obj:
+                    state[attribute][key] = f"./{attribute}/{key}"
+                    curr_obj[key].save(f"{filepath}/{attribute}/{key}", tgz=False)
+            elif save_method is None:
+                state[attribute] = curr_obj
+            else:
+                state[attribute] = f"./{attribute}"
+                curr_obj.save(f"{filepath}/{attribute}", tgz=False)
+        with open(os.path.join(filepath, "_save_state.yaml"), 'w') as state_file:
+            state = omegaconf.OmegaConf.create(state)
+            omegaconf.OmegaConf.save(state, state_file)
+        if tgz:
+            with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
+                out_file.add(filepath, arcname=os.path.basename(filepath))
 
 
 def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
@@ -118,12 +152,13 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
         task_embeddings.append([output_embeddings[layer][idx] for layer in generator.layers[1:]])
 
     multitask_training_pairs = list(zip(input_embeddings, task_embeddings))
+    multitask_training_pairs = multitask_training_pairs[:50]
     print(f"{multitask_training_pairs[0]=}")
     print(f"{len(multitask_training_pairs)=}")
     nine_to_one_split_idx = int(len(multitask_training_pairs) * 0.9)
     trainer.train_iterations(multitask_training_pairs[:nine_to_one_split_idx], multitask_training_pairs[nine_to_one_split_idx:])
 
-    torch.save(generator, os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.pt"))
+    generator.save(os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.pt"))
 
 
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:

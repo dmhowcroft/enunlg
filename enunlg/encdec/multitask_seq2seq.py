@@ -1,6 +1,8 @@
 from typing import List, Optional, Tuple
 
+import os
 import logging
+import tarfile
 
 import omegaconf
 import torch
@@ -195,6 +197,19 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         """Only implementing greedy for now."""
         with torch.no_grad():
             return self.forward_e2e(enc_emb, max_length)
+
+    def _save_classname_to_dir(self, directory_path):
+        with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
+            class_file.write(self.__class__.__name__)
+
+    def save(self, filepath, tgz=True):
+        os.mkdir(filepath)
+        self._save_classname_to_dir(filepath)
+        with open(f"{filepath}/_state_dict.pt", 'wb') as state_file:
+            torch.save(self.state_dict(), state_file)
+        if tgz:
+            with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
+                out_file.add(filepath, arcname=os.path.basename(filepath))
 
 
 class ShallowEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
