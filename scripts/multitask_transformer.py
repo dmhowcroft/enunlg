@@ -126,16 +126,16 @@ class MultitaskTransformerGenerator(object):
         return self.model.generate(mr)
 
 
-def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
-    layer_names = list(vocabularies.keys())
+def prep_embeddings(corpus, vocab, uniform_max_length=True):
+    layer_names = corpus.layers
     input_layer_name = layer_names[0]
     if uniform_max_length:
         max_length_any_layer = corpus.max_layer_length
-    input_embeddings = [torch.tensor(vocabularies[input_layer_name].get_ints_with_left_padding(item, max_length_any_layer),
+    input_embeddings = [torch.tensor(vocab.get_ints_with_left_padding(item, max_length_any_layer),
                                      dtype=torch.long) for item in corpus.items_by_layer(input_layer_name)]
     output_embeddings = {
-        layer_name: [torch.tensor(vocabularies[layer_name].get_ints(item), dtype=torch.long) for item in
-                corpus.items_by_layer(layer_name)] for layer_name in layer_names[1:]}
+        layer_name: [torch.tensor(vocab.get_ints(item), dtype=torch.long) for item in
+                     corpus.items_by_layer(layer_name)] for layer_name in layer_names[1:]}
     return input_embeddings, output_embeddings
 
 
