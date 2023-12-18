@@ -214,7 +214,7 @@ def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
                     if match_found:
                         break
                 if not match_found:
-                    logger.info(f"Could not create reg_lex text for {lex_token}")
+                    logger.debug(f"Could not create reg_lex text for {lex_token}")
                     logger.debug(f"in:\n{text}\n{template}\n{lex}\n{reg_dict}")
                     extract_reg_from_template_and_text(text, template, print_diff=True)
                     new_lex.append(lex_token)
