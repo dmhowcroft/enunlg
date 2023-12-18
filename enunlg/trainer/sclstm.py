@@ -1,7 +1,8 @@
 import logging
 import random
 import time
-from typing import List, Tuple
+
+from typing import List, Tuple, TYPE_CHECKING
 
 import omegaconf
 import torch
@@ -9,6 +10,9 @@ import torch
 from enunlg.trainer.base import BasicTrainer
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
+
+if TYPE_CHECKING:
+    import enunlg.encdec.sclstm
 
 
 class SCLSTMTrainer(BasicTrainer):

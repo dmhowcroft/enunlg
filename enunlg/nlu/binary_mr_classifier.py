@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class TGenSemClassifier(torch.nn.Module):
     def __init__(self, text_vocabulary: "enunlg.vocabulary.TokenVocabulary",
-                 onehot_encoder: "enunlg.embeddings.onehot.DialogueActEmbeddings",
+                 onehot_encoder: "enunlg.embeddings.binary.DialogueActEmbeddings",
                  model_config=None) -> None:
         super().__init__()
         if model_config is None:

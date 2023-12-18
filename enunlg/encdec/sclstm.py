@@ -17,6 +17,7 @@ import enunlg.embeddings.glove
 if TYPE_CHECKING:
     import enunlg.embeddings
     import enunlg.embeddings.binary
+    import enunlg.vocabulary
 
 logger = logging.getLogger(__name__)
 
@@ -286,7 +287,7 @@ SCLSTM_RELEASED_CONFIG.slot_value_size = 15
 
 class BaseSCLSTMModel(torch.nn.Module):
     def __init__(self,
-                 da_embedder: "enunlg.embeddings.onehot.DialogueActEmbeddings",
+                 da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
                  token_int_mapper: "enunlg.vocabulary.TokenVocabulary",
                  model_config=None,
                  sclstm_layer=None):
@@ -454,7 +455,7 @@ class BaseSCLSTMModel(torch.nn.Module):
 
 
 class SCLSTMModelAsDescribed(BaseSCLSTMModel):
-    def __init__(self, da_embedder: "enunlg.embeddings.onehot.DialogueActEmbeddings",
+    def __init__(self, da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
                  token_int_mapper: "enunlg.vocabulary.TokenVocabulary", model_config=None):
         if model_config is None:
             # Set defaults
@@ -466,7 +467,7 @@ class SCLSTMModelAsDescribed(BaseSCLSTMModel):
 
 
 class SCLSTMModelAsReleased(BaseSCLSTMModel):
-    def __init__(self, da_embedder: "enunlg.embeddings.onehot.DialogueActEmbeddings",
+    def __init__(self, da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
                  token_int_mapper: "enunlg.vocabulary.TokenVocabulary", model_config=None):
         if model_config is None:
             # Set defaults
@@ -479,7 +480,7 @@ class SCLSTMModelAsReleased(BaseSCLSTMModel):
 
 
 class SCLSTMModelAsDescribedWithGlove(SCLSTMModelAsDescribed):
-    def __init__(self, da_embedder: "enunlg.embeddings.onehot.DialogueActEmbeddings",
+    def __init__(self, da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
                  glove_filepath: str, model_config=None):
         token_int_mapper, embedding_layer = enunlg.embeddings.glove.GloVeEmbeddings.from_word_embedding_txt(
             glove_filepath, with_vocab=True)
@@ -493,7 +494,7 @@ class SCLSTMModelAsDescribedWithGlove(SCLSTMModelAsDescribed):
 
 
 class SCLSTMModelAsReleasedWithGlove(SCLSTMModelAsReleased):
-    def __init__(self, da_embedder: "enunlg.embeddings.onehot.DialogueActEmbeddings",
+    def __init__(self, da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
                  glove_filepath: str, model_config=None):
         token_int_mapper, embedding_layer = enunlg.embeddings.glove.GloVeEmbeddings.from_word_embedding_txt(
             glove_filepath, with_vocab=True)
