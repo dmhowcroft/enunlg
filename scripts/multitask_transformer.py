@@ -100,7 +100,7 @@ class MultitaskTransformerGenerator(object):
         :param corpus:
         """
         self.layers: List[str] = corpus.annotation_layers
-        self.vocabulary: Dict[str, enunlg.vocabulary.TokenVocabulary] = enunlg.vocabulary.TokenVocabulary(corpus.all_item_layer_iterator())
+        self.vocabulary: enunlg.vocabulary.TokenVocabulary = enunlg.vocabulary.TokenVocabulary(corpus.all_item_layer_iterator())
         # Store some basic information about the corpus
         self.max_length_any_layer = corpus.max_layer_length
         self.corpus_metadata = corpus.metadata
@@ -127,7 +127,7 @@ class MultitaskTransformerGenerator(object):
 
 
 def prep_embeddings(corpus, vocab, uniform_max_length=True):
-    layer_names = corpus.layers
+    layer_names = corpus.annotation_layers
     input_layer_name = layer_names[0]
     if uniform_max_length:
         max_length_any_layer = corpus.max_layer_length
