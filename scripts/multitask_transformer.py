@@ -100,8 +100,11 @@ class MultitaskTransformer(torch.nn.Transformer):
 
         dec_outputs = self.forward(enc_emb, dec_emb)
         dec_targets = dec_emb.squeeze(0)
-        # print(dec_outputs.squeeze(0).size())
-        # print(dec_targets.size())
+        # logger.info(f"{dec_outputs.squeeze(0).size()=}")
+        # logger.info(f"{dec_targets.size()=}")
+        # logger.info(f"{dec_targets=}")
+        # 2023-12-20 - Loss calculation is using tensors of the correct size and shape as input
+        # 2023-12-20 - Dec targets are correct
         loss = criterion(dec_outputs.squeeze(0), dec_targets)
 
         loss.backward()
@@ -112,18 +115,21 @@ class MultitaskTransformer(torch.nn.Transformer):
     def generate(self, enc_emb, max_length=128):
         """Only implementing greedy for now."""
         with torch.no_grad():
-            linear_preds = self.forward(enc_emb, enc_emb)
-            # print(f"{linear_preds.size()=}")
-            dec_outputs = torch.nn.functional.log_softmax(linear_preds.squeeze(0), dim=0)
-            # print(f"{dec_outputs.size()=}")
-            outputs = []
-            for dec_output in dec_outputs:
-                # print(f"{dec_output.size()=}")
+            outputs = [1]
+            for _ in range(max_length):
+                output_so_far = torch.tensor(outputs)
+                linear_preds = self.forward(enc_emb, output_so_far, tgt_mask=self.generate_square_subsequent_mask(output_so_far.size(0)))
+                # logger.info(f"{linear_preds.size()=}")
+                dec_outputs = torch.nn.functional.log_softmax(linear_preds.squeeze(0), dim=0)
+                # logger.info(f"{dec_outputs.size()=}")
+                dec_output = dec_outputs[-1]
+                # logger.info(f"{dec_output.size()=}")
                 topv, topi = dec_output.data.topk(1)
-                # print(topi)
+                # logger.info(topi)
                 outputs.append(topi.item())
                 if topi.item() == 2:
                     break
+            # logger.info("--(inside generate)---")
             return outputs
 
 
