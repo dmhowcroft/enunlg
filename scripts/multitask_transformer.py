@@ -165,11 +165,12 @@ def prep_embeddings(corpus, vocab, uniform_max_length=True):
     layer_names = corpus.annotation_layers
     input_layer_name = layer_names[0]
     if uniform_max_length:
-        max_length_any_layer = corpus.max_layer_length
+        # subtract 2 because the get_ints_with_*_padding methods add start and stop tokens
+        max_length_any_layer = corpus.max_layer_length -2
     input_embeddings = [torch.tensor(vocab.get_ints_with_left_padding(item, max_length_any_layer),
                                      dtype=torch.long) for item in corpus.items_by_layer(input_layer_name)]
     output_embeddings = {
-        layer_name: [torch.tensor(vocab.get_ints(item), dtype=torch.long) for item in
+        layer_name: [torch.tensor(vocab.get_ints_with_right_padding(item, max_length_any_layer), dtype=torch.long) for item in
                      corpus.items_by_layer(layer_name)] for layer_name in layer_names[1:]}
     return input_embeddings, output_embeddings
 
