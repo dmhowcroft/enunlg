@@ -11,7 +11,7 @@ import enunlg.data_management.iocorpus
 
 logger = logging.getLogger(__name__)
 
-WEBNLG_2023_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/2023-Challenge/data/')
+WEBNLG_2023_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/raw/2023-Challenge/data/')
 
 
 class RDFTriple(object):
