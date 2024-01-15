@@ -40,7 +40,10 @@ function fetch_dataset {
     webnlg2023)
       git clone git@github.com:WebNLG/2023-Challenge.git ;;
     webnlg-enriched)
-      git clone git@github.com:ThiagoCF05/webnlg.git ;;
+      if [ ! -d webnlg ]
+      then
+        git clone git@github.com:ThiagoCF05/webnlg.git
+      fi;;
   esac
 }
 
@@ -51,7 +54,11 @@ function process_dataset {
       cp -rf datasets/raw/EnrichedE2E datasets/processed/.
       # Fix errors  in corpus annotation
       # TODO check usage of __s__
-      sed -i -e 's/__CUSTOMER___ RATING/__CUSTOMER_RATING__/g' -e 's/__CUSTOMER___ __RATING\([a-z\-]*\)__/__CUSTOMER_RATING__ \1/g' -e 's/ CUSTOMER_RATING //g' -e 's/\([ .]\)__ /\1/g' -e 's/__ @ FAMILYFRIENDLY /__ @ __FAMILYFRIENDLY__ /g' -e 's/<text>The Wrestlers is \(a decent\|an average\) \(family-\|child \)friendly \(place\|venue\).</<text>The Wrestlers is \1 @ \2friendly \3.</g' -e 's/Not family friendly Alimentum/Not family friendly @ Alimentum/g' -e 's/high-priced kids-friendly/high-priced @ kids-friendly/g' -e "s/Its a /It's a /g" -e "s/ __NAME__s / __NAME__ 's /g" -e "s/ __s__ / /g" -e 's/verage family friendly/verage @ family friendly/g' -e 's/ it high/ it @ high/g' -e 's/__..but/but/g' -e 's/\.\.\.but/, but/g' -e 's/for children it/for children @ it/g' -e 's/__CUSTOMER_RATING__and/__CUSTOMER_RATING__ and/g' -e 's/5and/5 and/g' -e "s/ ' \(s\|re\) / '\1 /g" -e 's/ __FAMILYFRIENDLY__t family - friendly / __FAMILYFRIENDLY__ /g' -e 's/ \(__PRICERANGE__ly\|__PRICERANGEly__\) / __PRICERANGE__ /g' datasets/processed/EnrichedE2E/*/*.xml
+      sed -i -e 's/__CUSTOMER___ RATING/__CUSTOMER_RATING__/g' -e 's/__CUSTOMER___ __RATING\([a-z\-]*\)__/__CUSTOMER_RATING__ \1/g' -e 's/ CUSTOMER_RATING //g' -e 's/\([ .]\)__ /\1/g' -e 's/__ @ FAMILYFRIENDLY /__ @ __FAMILYFRIENDLY__ /g' -e 's/<text>The Wrestlers is \(a decent\|an average\) \(family-\|child \)friendly \(place\|venue\).</<text>The Wrestlers is \1 @ \2friendly \3.</g' -e 's/Not family friendly Alimentum/Not family friendly @ Alimentum/g' -e 's/high-priced kids-friendly/high-priced @ kids-friendly/g' -e "s/Its a /It's a /g" -e "s/ __NAME__s / __NAME__ 's /g" -e "s/ __s__ / /g" -e 's/verage family friendly/verage @ family friendly/g' -e 's/ it high/ it @ high/g' -e 's/__..but/but/g' -e 's/\.\.\.but/, but/g' -e 's/for children it/for children @ it/g' -e 's/__CUSTOMER_RATING__and/__CUSTOMER_RATING__ and/g' -e 's/5and/5 and/g' -e "s/ ' \(s\|re\) / '\1 /g" -e 's/ __FAMILYFRIENDLY__t family - friendly / __FAMILYFRIENDLY__ /g' -e 's/ \(__PRICERANGE__ly\|__PRICERANGEly__\) / __PRICERANGE__ /g' datasets/processed/EnrichedE2E/*/*.xml ;;
+    webnlg-enriched)
+      cp -rf datasets/raw/webnlg datasets/processed/.
+      # Fix errors in corpus annotation
+      sed -i -e 's/"BRIDGE-"/"BRIDGE-2"/g' -e 's/ BRIDGE- / BRIDGE-2 /g' datasets/processed/webnlg/data/v1.6/en/dev/3triples/Building.xml ;;
   esac
 }
 
