@@ -1,15 +1,18 @@
 from collections import defaultdict
 from collections.abc import MutableMapping
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import difflib
 import logging
 import os
 
 import omegaconf
+import xsdata.exceptions
 import xsdata.formats.dataclass.parsers as xsparsers
 
-from enunlg.formats.xml.enriched_e2e import EnrichedE2EEntries, EnrichedE2EEntry
+from enunlg.data_management.pipelinecorpus import PipelineCorpusMapper
+from enunlg.data_management.webnlg import RDFTriple, RDFTripleList
+from enunlg.formats.xml.enriched_webnlg import EnrichedWebNLGBenchmark, EnrichedWebNLGEntry
 from enunlg.meaning_representation.slot_value import SlotValueMR
 from enunlg.normalisation.tokenisation import TGenTokeniser
 
@@ -18,16 +21,18 @@ import enunlg.data_management.pipelinecorpus
 logger = logging.getLogger(__name__)
 
 # TODO add hydra configuration for enriched e2e stuff
-ENRICHED_WEBNLG_CONFIG = omegaconf.DictConfig({'ENRICHED_WEBNLG_DIR': os.path.join(os.path.dirname(__file__),
-                                                                                '../../datasets/processed/webnlg/data/v1.6/en/')})
+ENRICHED_WEBNLG_CONFIG = omegaconf.DictConfig({'ENRICHED_WEBNLG_DIR':
+                                                   os.path.join(os.path.dirname(__file__),
+                                                                '../../datasets/processed/webnlg/data/v1.6/en/')})
 
 WEBNLG_SPLIT_DIRS = ('train', 'dev', 'test')
 
-DELEX_LABELS = ["__AREA__", "__CUSTOMER_RATING__", "__EATTYPE__", "__FAMILYFRIENDLY__", "__FOOD__", "__NAME__",
-                "__NEAR__", "__PRICERANGE__"]
+DELEX_LABELS = ["AGENT-1",
+                "BRIDGE-1", "BRIDGE-2", "BRIDGE-3", "BRIDGE-4",
+                "PATIENT-1", "PATIENT-2", "PATIENT-3", "PATIENT-4", "PATIENT-5", "PATIENT-6", "PATIENT-7"]
+
 
 DIFFER = difflib.Differ()
-
 
 def extract_reg_from_template_and_text(text: str, template: str, print_diff: bool = False) -> MutableMapping[str, List[str]]:
     diff = DIFFER.compare(text.strip().split(), template.strip().split())
@@ -63,121 +68,97 @@ def extract_reg_from_template_and_text(text: str, template: str, print_diff: boo
     return result_dict
 
 
-class EnrichedE2ECorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
+class EnrichedWebNLGCorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
     def __init__(self, seq: Optional[Iterable] = None, filename_or_list: Optional[Union[str, List[str]]] = None):
         super().__init__(seq)
         if filename_or_list is not None:
             if isinstance(filename_or_list, list):
                 for filename in filename_or_list:
                     logger.info(filename)
-                    self.load_file(filename)
+                    try:
+                        self.load_file(filename)
+                    except xsdata.exceptions.ParserError:
+                        print(filename)
+                        raise
             elif isinstance(filename_or_list, str):
                 self.load_file(filename_or_list)
             else:
                 raise TypeError(f"Expected filename_or_list to be None, str, or list, not {type(filename_or_list)}")
 
     def load_file(self, filename):
-        entries_object = xsparsers.XmlParser().parse(filename, EnrichedE2EEntries)
-        self.extend(entries_object.entries)
+        benchmark_object = xsparsers.XmlParser().parse(filename, EnrichedWebNLGBenchmark)
+        entries_object = benchmark_object.entries
+        # TODO align names of XML objects like we did for E2E
+        self.extend(entries_object.entry)
 
 
-class PipelineCorpusMapper(object):
-    def __init__(self, input_format, output_format, annotation_layer_mappings: Dict[str, Callable]):
-        """
-        Create a function which will map from `input_format` to `output_format` using `annotation_layer_mappings`.
-        """
-        self.input_format = input_format
-        self.output_format = output_format
-        self.annotation_layer_mappings = annotation_layer_mappings
-
-    def __call__(self, input_corpus: Iterable) -> List:
-        # logger.debug(f'successful call to {self.__class__.__name__} as a function (rather than a class)')
-        if isinstance(input_corpus, self.input_format):
-            # logger.debug('passed the format check')
-            output_seq = []
-            for entry in input_corpus:
-                output = []
-                for layer in self.annotation_layer_mappings:
-                    # logger.debug(f"processing {layer}")
-                    output.append(self.annotation_layer_mappings[layer](entry))
-                # EnrichedE2E-formated datasets have up to N distinct targets for each single input
-                # This will show up as the first 'layer' having length 1 and subsequent layers having length > 1
-                num_targets = max([len(x) for x in output])
-                # We expand any layers of length 1, duplicating their entries, and preserving the rest of the layers
-                output = [x * num_targets if len(x) == 1 else x for x in output]
-                assert all([len(x) == num_targets for x in output]), f"expected all layers to have the same number of items, but received: {[len(x) for x in output]}"
-                # For each of the N distinct targets, create a self.outputformat object and append it to the output_seq
-                for i in range(num_targets-1):
-                    item = self.output_format({key: output[idx][i] for idx, key in enumerate(self.annotation_layer_mappings.keys())})
-                    output_seq.append(item)
-                # logger.debug(f"Num entries so far: {len(output_seq)}")
-            return output_seq
-        else:
-            raise TypeError(f"Cannot run {self.__class__} on {type(input_corpus)}")
-
-
-class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
+class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
     def __init__(self, annotation_layers):
         super().__init__(annotation_layers)
 
 
-class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
-    def __init__(self, seq: List[EnrichedE2EItem], metadata=None):
-        super(EnrichedE2ECorpus, self).__init__(seq, metadata)
+class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
+    def __init__(self, seq: List[EnrichedWebNLGItem], metadata=None):
+        super(EnrichedWebNLGCorpus, self).__init__(seq, metadata)
 
 
-def extract_raw_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
-    mr = {}
-    for source_input in entry.source.inputs:
-        mr[source_input.attribute] = source_input.value
-    return [SlotValueMR(mr, frozen_box=True)]
+def extract_raw_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
+    triplelist = RDFTripleList([])
+    for tripleset in entry.modifiedtripleset.mtriple:
+        triplelist.append(RDFTriple.from_string(tripleset))
+    return [triplelist]
 
 
-def extract_selected_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
+def extract_selected_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
     targets = []
-    for target in entry.targets:
-        mr = {}
-        for sentence in target.structuring.sentences:
-            for input in sentence.content:
-                mr[input.attribute] = input.value
-        targets.append(SlotValueMR(mr, frozen_box=True))
+    for lex in entry.lex:
+        triplelist = []
+        for sentence in lex.sortedtripleset.sentence:
+            for sortedtriple in sentence.striple:
+                triplelist.append(RDFTriple.from_string(sortedtriple))
+        targets.append(RDFTripleList(triplelist))
     return targets
 
 
-def extract_ordered_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
+def extract_ordered_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
     targets = []
-    for target in entry.targets:
-        mr = {}
-        for sentence in target.structuring.sentences:
-            for input in sentence.content:
-                mr[input.attribute] = input.value
-        targets.append(SlotValueMR(mr, frozen_box=True))
+    for lex in entry.lex:
+        triplelist = []
+        for sentence in lex.sortedtripleset.sentence:
+            for sortedtriple in sentence.striple:
+                triplelist.append(RDFTriple.from_string(sortedtriple))
+        targets.append(RDFTripleList(triplelist))
     return targets
 
 
-def extract_sentence_segmented_input(entry: EnrichedE2EEntry) -> List[Tuple[SlotValueMR]]:
+def extract_sentence_segmented_input(entry: EnrichedWebNLGEntry) -> List[Tuple[Tuple[RDFTriple]]]:
     targets = []
-    for target in entry.targets:
+    for lex in entry.lex:
         selected_inputs = []
-        for sentence in target.structuring.sentences:
-            mr = {}
-            for input in sentence.content:
-                mr[input.attribute] = input.value
-            selected_inputs.append(SlotValueMR(mr, frozen_box=True))
+        for sentence in lex.sortedtripleset.sentence:
+            triplelist = []
+            for sortedtriple in sentence.striple:
+                triplelist.append(RDFTriple.from_string(sortedtriple))
+            selected_inputs.append(tuple(triplelist))
         targets.append(tuple(selected_inputs))
     return targets
 
 
-def extract_lexicalization(entry: EnrichedE2EEntry) -> List[str]:
-    return [target.lexicalization for target in entry.targets]
+def extract_lexicalization(entry: EnrichedWebNLGEntry) -> List[str]:
+    return [target.lexicalization for target in entry.lex]
 
 
-def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
-    texts = [target.text for target in entry.targets]
-    templates = [target.template for target in entry.targets]
-    lexes = [target.lexicalization for target in entry.targets]
+def extract_reg_in_lex(entry: EnrichedWebNLGEntry) -> List[str]:
+    texts = [target.text for target in entry.lex]
+    templates = [target.template for target in entry.lex]
+    lexes = [target.lexicalization for target in entry.lex]
     reg_lexes = []
     for text, template, lex in zip(texts, templates, lexes):
+        if None in (text, template, lex):
+            print(entry)
+            print(text)
+            print(template)
+            print(lex)
         reg_dict = extract_reg_from_template_and_text(text, template)
         new_lex = []
         curr_text_idx = 0
@@ -226,22 +207,22 @@ def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
     return reg_lexes
 
 
-def extract_raw_output(entry: EnrichedE2EEntry) -> List[str]:
-    return [target.text for target in entry.targets]
+def extract_raw_output(entry: EnrichedWebNLGEntry) -> List[str]:
+    return [target.text for target in entry.lex]
 
 
-def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_config: Optional[omegaconf.DictConfig] = None) -> EnrichedE2ECorpus:
+def load_enriched_webnlg(splits: Optional[Iterable[str]] = None, enriched_webnlg_config: Optional[omegaconf.DictConfig] = None) -> EnrichedWebNLGCorpus:
     """
     :param splits: which splits to load
-    :param enriched_e2e_config: a SlotValueMR or omegaconf.DictConfig like object containing the basic
+    :param enriched_webnlg_config: a SlotValueMR or omegaconf.DictConfig like object containing the basic
                                 information about the e2e corpus to be used
     :return: the corpus of MR-text pairs with metadata
     """
-    if enriched_e2e_config is None:
+    if enriched_webnlg_config is None:
         enriched_e2e_config = ENRICHED_WEBNLG_CONFIG
-    corpus_name = "Enriched E2E Challenge Corpus"
+    corpus_name = "Enriched WebNLG Corpus (v1.6)"
     default_splits = WEBNLG_SPLIT_DIRS
-    data_directory = enriched_e2e_config.ENRICHED_E2E_DIR
+    data_directory = enriched_e2e_config.ENRICHED_WEBNLG_DIR
     if splits is None:
         splits = default_splits
     elif not set(splits).issubset(default_splits):
@@ -249,9 +230,10 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
     fns = []
     for split in splits:
         logger.info(split)
-        fns.extend([os.path.join(data_directory, split, fn) for fn in os.listdir(os.path.join(data_directory, split))])
+        for tuple_dir in os.listdir(os.path.join(data_directory, split)):
+            fns.extend([os.path.join(data_directory, split, tuple_dir, fn) for fn in os.listdir(os.path.join(data_directory, split, tuple_dir))])
 
-    corpus: EnrichedE2ECorpusRaw = EnrichedE2ECorpusRaw(filename_or_list=fns)
+    corpus: EnrichedWebNLGCorpusRaw = EnrichedWebNLGCorpusRaw(filename_or_list=fns)
     corpus.metadata = {'name': corpus_name,
                        'splits': splits,
                        'directory': data_directory}
@@ -259,44 +241,62 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
 
     # tokenize texts
     for entry in corpus:
-        for target in entry.targets:
+        for target in entry.lex:
             target.text = TGenTokeniser.tokenise(target.text)
-    enriched_e2e_factory = PipelineCorpusMapper(EnrichedE2ECorpusRaw, EnrichedE2EItem,
+    enriched_webnlg_factory = PipelineCorpusMapper(EnrichedWebNLGCorpusRaw, EnrichedWebNLGItem,
                                                 {'raw-input': lambda entry: extract_raw_input(entry),
                                                  'selected-input': extract_selected_input,
                                                  'ordered-input': extract_ordered_input,
                                                  'sentence-segmented-input': extract_sentence_segmented_input,
                                                  'lexicalisation': extract_lexicalization,
-                                                 'referring-expressions': extract_reg_in_lex,
+                                                 'referring-expressions': lambda x: ["no reg"],
                                                  'raw-output': extract_raw_output})
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
-    corpus: EnrichedE2ECorpus = EnrichedE2ECorpus(enriched_e2e_factory(corpus))
+    corpus: EnrichedWebNLGCorpus = EnrichedWebNLGCorpus(enriched_webnlg_factory(corpus))
     logger.info(f"Corpus contains {len(corpus)} entries.")
     return corpus
 
-
-def sanitize_values(value):
-    return value.replace(" ", "_").replace("'", "_")
-
-
-def sanitize_slot_names(slot_name):
-    return slot_name
+def sanitize_subjects_and_objects(subject_or_object: str) -> List[str]:
+    out_string = subject_or_object.replace("_", " ").replace(",", " , ")
+    out_tokens = out_string.split()
+    # omit empty strings caused by multiple spaces in a row
+    return [token for token in out_tokens if token]
 
 
-def linearize_slot_value_mr(mr: enunlg.meaning_representation.slot_value.SlotValueMR):
-    tokens = ["<MR>"]
-    for slot in mr:
-        tokens.append(sanitize_slot_names(slot))
-        tokens.append(sanitize_values(mr[slot]))
-        tokens.append("<PAIR_SEP>")
-    tokens.append("</MR>")
+def sanitize_predicates(predicate: str) -> List[str]:
+    return [predicate]
+
+
+def linearize_rdf_triple_list(rdf_triple_list: Union[List[RDFTriple], RDFTripleList]) -> List[str]:
+    tokens = ["<RDF_TRIPLES>"]
+    for rdf_triple in rdf_triple_list:
+        tokens.append("<SUBJECT>")
+        tokens.extend(sanitize_subjects_and_objects(rdf_triple.subject))
+        tokens.append("</SUBJECT>")
+        tokens.append("<PREDICATE>")
+        tokens.extend(sanitize_predicates(rdf_triple.predicate))
+        tokens.append("</PREDICATE>")
+        tokens.append("<OBJECT>")
+        tokens.extend(sanitize_subjects_and_objects(rdf_triple.object))
+        tokens.append("</OBJECT>")
+        tokens.append("<TRIPLE_SEP>")
+    tokens.append("</RDF_TRIPLES>")
     return tokens
 
 
-def linearize_slot_value_mr_seq(mrs):
-    tokens = ["<SENTENCE>"]
-    for mr in mrs:
-        tokens.extend(linearize_slot_value_mr(mr))
+def linearize_seq_of_rdf_triple_lists(seq_of_rdf_triple_lists) -> List[str]:
+    tokens = []
+    for rdf_triple_list in seq_of_rdf_triple_lists:
+        tokens.append("<SENTENCE>")
+        tokens.extend(linearize_rdf_triple_list(rdf_triple_list))
         tokens.append("</SENTENCE>")
     return tokens
+
+LINEARIZATION_FUNCTIONS = {'raw_input': linearize_rdf_triple_list,
+                           'selected_input': linearize_rdf_triple_list,
+                           'ordered_input': linearize_rdf_triple_list,
+                           'sentence_segmented_input': linearize_seq_of_rdf_triple_lists,
+                           'lexicalisation': lambda lex_string: lex_string.strip().split() if lex_string is not None else "",
+                           'referring_expressions': lambda reg_string: reg_string.strip().split(),
+                           'raw_output': lambda text: text.strip().split()}
