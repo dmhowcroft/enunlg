@@ -127,7 +127,7 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
             logger.debug(x.size())
         logger.debug(f"{len(enc_h_c_states)=}")
         for x in enc_h_c_states:
-            logger.debug(x[0].size(), x[1].size())
+            logger.debug(f"{x[0].size()=}, {x[1].size()=}")
 
         logger.debug(f"{len(dec_emb)=}")
         for x in dec_emb:
