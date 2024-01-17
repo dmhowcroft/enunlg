@@ -80,41 +80,6 @@ class EnrichedE2ECorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
         self.extend(entries_object.entries)
 
 
-class PipelineCorpusMapper(object):
-    def __init__(self, input_format, output_format, annotation_layer_mappings: Dict[str, Callable]):
-        """
-        Create a function which will map from `input_format` to `output_format` using `annotation_layer_mappings`.
-        """
-        self.input_format = input_format
-        self.output_format = output_format
-        self.annotation_layer_mappings = annotation_layer_mappings
-
-    def __call__(self, input_corpus: Iterable) -> List:
-        # logger.debug(f'successful call to {self.__class__.__name__} as a function (rather than a class)')
-        if isinstance(input_corpus, self.input_format):
-            # logger.debug('passed the format check')
-            output_seq = []
-            for entry in input_corpus:
-                output = []
-                for layer in self.annotation_layer_mappings:
-                    # logger.debug(f"processing {layer}")
-                    output.append(self.annotation_layer_mappings[layer](entry))
-                # EnrichedE2E-formated datasets have up to N distinct targets for each single input
-                # This will show up as the first 'layer' having length 1 and subsequent layers having length > 1
-                num_targets = max([len(x) for x in output])
-                # We expand any layers of length 1, duplicating their entries, and preserving the rest of the layers
-                output = [x * num_targets if len(x) == 1 else x for x in output]
-                assert all([len(x) == num_targets for x in output]), f"expected all layers to have the same number of items, but received: {[len(x) for x in output]}"
-                # For each of the N distinct targets, create a self.outputformat object and append it to the output_seq
-                for i in range(num_targets-1):
-                    item = self.output_format({key: output[idx][i] for idx, key in enumerate(self.annotation_layer_mappings.keys())})
-                    output_seq.append(item)
-                # logger.debug(f"Num entries so far: {len(output_seq)}")
-            return output_seq
-        else:
-            raise TypeError(f"Cannot run {self.__class__} on {type(input_corpus)}")
-
-
 class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
     def __init__(self, annotation_layers):
         super().__init__(annotation_layers)
@@ -260,7 +225,7 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
     for entry in corpus:
         for target in entry.targets:
             target.text = TGenTokeniser.tokenise(target.text)
-    enriched_e2e_factory = PipelineCorpusMapper(EnrichedE2ECorpusRaw, EnrichedE2EItem,
+    enriched_e2e_factory = enunlg.data_management.pipelinecorpus.PipelineCorpusMapper(EnrichedE2ECorpusRaw, EnrichedE2EItem,
                                                 {'raw-input': lambda entry: extract_raw_input(entry),
                                                  'selected-input': extract_selected_input,
                                                  'ordered-input': extract_ordered_input,
@@ -294,8 +259,18 @@ def linearize_slot_value_mr(mr: enunlg.meaning_representation.slot_value.SlotVal
 
 
 def linearize_slot_value_mr_seq(mrs):
-    tokens = ["<SENTENCE>"]
+    tokens = []
     for mr in mrs:
+        tokens.append("<SENTENCE>")
         tokens.extend(linearize_slot_value_mr(mr))
         tokens.append("</SENTENCE>")
     return tokens
+
+
+LINEARIZATION_FUNCTIONS = {'raw_input': linearize_slot_value_mr,
+                           'selected_input': linearize_slot_value_mr,
+                           'ordered_input': linearize_slot_value_mr,
+                           'sentence_segmented_input': linearize_slot_value_mr_seq,
+                           'lexicalisation': lambda lex_string: lex_string.strip().split(),
+                           'referring_expressions': lambda reg_string: reg_string.strip().split(),
+                           'raw_output': lambda text: text.strip().split()}

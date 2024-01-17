@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 import logging
 import math
@@ -8,26 +8,15 @@ import omegaconf
 import hydra
 import torch
 
-from enunlg.data_management.pipelinecorpus import TextPipelineCorpus
+from enunlg.data_management.enriched_e2e import LINEARIZATION_FUNCTIONS
 from enunlg.trainer.multitask_seq2seq import MultitaskTransformerTrainer
 
-import enunlg.data_management.enriched_e2e as ee2e
+import enunlg.data_management.pipelinecorpus
 import enunlg.encdec.multitask_seq2seq
 import enunlg.util
 import enunlg.vocabulary
 
 logger = logging.getLogger('enunlg-scripts.multitask_transformer')
-
-SUPPORTED_DATASETS = {"enriched-e2e"}
-
-# Convert corpus to text pipeline corpus
-LINEARIZATION_FUNCTIONS = {'raw_input': ee2e.linearize_slot_value_mr,
-                           'selected_input': ee2e.linearize_slot_value_mr,
-                           'ordered_input': ee2e.linearize_slot_value_mr,
-                           'sentence_segmented_input': ee2e.linearize_slot_value_mr_seq,
-                           'lexicalisation': lambda lex_string: lex_string.strip().split(),
-                           'referring_expressions': lambda reg_string: reg_string.strip().split(),
-                           'raw_output': lambda text: text.strip().split()}
 
 
 class PositionalEncoding(torch.nn.Module):
@@ -134,7 +123,8 @@ class MultitaskTransformer(torch.nn.Transformer):
 
 
 class MultitaskTransformerGenerator(object):
-    def __init__(self, corpus: TextPipelineCorpus, model_config: omegaconf.DictConfig):
+    def __init__(self, corpus: enunlg.data_management.pipelinecorpus.TextPipelineCorpus,
+                 model_config: omegaconf.DictConfig):
         """
         Create a multitask transformer model based on `corpus`.
 
@@ -181,14 +171,20 @@ def prep_embeddings(corpus, vocab, uniform_max_length=True):
     return input_embeddings, output_embeddings
 
 
-def load_data_from_config(data_config) -> ee2e.EnrichedE2ECorpus:
+SUPPORTED_DATASETS = {"enriched-e2e", "enriched-webnlg"}
+
+
+def load_data_from_config(data_config: "omegaconf.DictConfig"):
     if data_config.corpus.name not in SUPPORTED_DATASETS:
         raise ValueError(f"Unsupported dataset: {data_config.corpus.name}")
     if data_config.corpus.name == 'enriched-e2e':
         logger.info("Loading Enriched E2E Challenge Data...")
-        return ee2e.load_enriched_e2e(data_config.corpus.splits)
+        return enunlg.data_management.enriched_e2e.load_enriched_e2e(data_config.corpus.splits)
+    elif data_config.corpus.name == 'enriched-webnlg':
+        logger.info("Loading Enriched WebNLG (v1.6) Data...")
+        return enunlg.data_management.enriched_webnlg.load_enriched_webnlg(data_config.corpus.splits)
     else:
-        raise ValueError("We can only load the Enriched E2E dataset right now.")
+        raise ValueError("We can only load the Enriched E2E and Enriched WebNLG datasets right now.")
 
 
 def train_multitask_transformer(config: omegaconf.DictConfig, shortcircuit=None):
@@ -199,7 +195,7 @@ def train_multitask_transformer(config: omegaconf.DictConfig, shortcircuit=None)
     print("____________")
 
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
-    text_corpus = TextPipelineCorpus.from_existing(ee2e_corpus, mapping_functions=LINEARIZATION_FUNCTIONS)
+    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(ee2e_corpus, mapping_functions=LINEARIZATION_FUNCTIONS)
     text_corpus.print_summary_stats()
 
     generator = MultitaskTransformerGenerator(text_corpus, config.model)

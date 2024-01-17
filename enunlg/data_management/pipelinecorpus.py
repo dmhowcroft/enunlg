@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple, TypeVar
+from typing import Any, Dict, List, Optional, TextIO, Tuple, TypeVar, Callable, Iterable
 
 import logging
 import random
@@ -53,8 +53,7 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
         if metadata is None:
             self.metadata = {'name': None,
                              'splits': None,
-                             'directory': None,
-                             'annotation_layers': None
+                             'directory': None
                              }
         if seq:
             layer_names = seq[0].annotation_layers
@@ -102,9 +101,12 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
         layer_types = defaultdict(set)
         for layer in self.annotation_layers:
             for entry in self:
-                layer_lengths[layer].append(len(entry[layer]))
-                layer_types[layer].update(entry[layer])
-                num_entries_per_layer[layer] += 1
+                if entry[layer] is not None:
+                    layer_lengths[layer].append(len(entry[layer]))
+                    layer_types[layer].update(entry[layer])
+                    num_entries_per_layer[layer] += 1
+                else:
+                    print("None type found for the entry {}".format(entry))
         for layer in layer_lengths:
             print(f"{layer}:\t\t{sum(layer_lengths[layer])/num_entries_per_layer[layer]:.2f} [{min(layer_lengths[layer])},{max(layer_lengths[layer])}]")
             print(f"    with {len(layer_types[layer])} types across {sum(layer_lengths[layer])} tokens.")
@@ -158,3 +160,62 @@ class TextPipelineCorpus(PipelineCorpus):
         for item in self:
             for layer in self.annotation_layers:
                 yield item[layer]
+
+    def save(self, filename: str) -> None:
+        with open(filename, 'w') as out_file:
+            self.write_to_iostream(out_file)
+    
+    def write_to_iostream(self, io_stream: TextIO) -> None:
+        io_stream.write("# TextPipeline Corpus Save File\n")
+        io_stream.write("# Format Version 0.1\n")
+        io_stream.write("\n")
+        io_stream.write("# Annotation Layers:\n")
+        for annotation_layer in self.annotation_layers:
+            io_stream.write(f"#   {annotation_layer}\n")
+        io_stream.write("\n")
+        for entry in self:
+            for annotation_layer in self.annotation_layers:
+                layer_line = " ".join(entry[annotation_layer])
+                io_stream.write(f"{layer_line}\n")
+            io_stream.write("\n")
+
+
+class PipelineCorpusMapper(object):
+    def __init__(self, input_format, output_format, annotation_layer_mappings: Dict[str, Callable]):
+        """
+        Create a function which will map from `input_format` to `output_format` using `annotation_layer_mappings`.
+        """
+        self.input_format = input_format
+        self.output_format = output_format
+        self.annotation_layer_mappings = annotation_layer_mappings
+
+    def __call__(self, input_corpus: Iterable) -> List:
+        # logger.debug(f'successful call to {self.__class__.__name__} as a function (rather than a class)')
+        if isinstance(input_corpus, self.input_format):
+            # logger.debug('passed the format check')
+            output_seq = []
+            for entry in input_corpus:
+                output = []
+                for layer in self.annotation_layer_mappings:
+                    # logger.debug(f"processing {layer}")
+                    output.append(self.annotation_layer_mappings[layer](entry))
+                # EnrichedWebNLG-formatted datasets have up to N distinct targets for each single input
+                # This will show up as the first 'layer' having length 1 and subsequent layers having length > 1
+                num_targets = max([len(x) for x in output])
+                # We expand any layers of length 1, duplicating their entries, and preserving the rest of the layers
+                output = [x * num_targets if len(x) == 1 else x for x in output]
+                try:
+                    assert all([len(x) == num_targets for x in output]), f"expected all layers to have the same number of items, but received: {[len(x) for x in output]}"
+                except AssertionError:
+                    print(entry)
+                    for x in output:
+                        print(x)
+                    raise
+                # For each of the N distinct targets, create a self.outputformat object and append it to the output_seq
+                for i in range(num_targets-1):
+                    item = self.output_format({key: output[idx][i] for idx, key in enumerate(self.annotation_layer_mappings.keys())})
+                    output_seq.append(item)
+                # logger.debug(f"Num entries so far: {len(output_seq)}")
+            return output_seq
+        else:
+            raise TypeError(f"Cannot run {self.__class__} on {type(input_corpus)}")

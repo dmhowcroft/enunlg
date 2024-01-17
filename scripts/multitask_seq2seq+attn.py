@@ -11,6 +11,7 @@ import torch
 from sacrebleu import metrics as sm
 
 import enunlg.data_management.enriched_e2e as ee2e
+import enunlg.data_management.enriched_webnlg
 import enunlg.data_management.pipelinecorpus
 import enunlg.encdec.multitask_seq2seq
 import enunlg.trainer.multitask_seq2seq
@@ -19,17 +20,6 @@ import enunlg.vocabulary
 import enunlg.util
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
-
-SUPPORTED_DATASETS = {"enriched-e2e"}
-
-# Convert corpus to text pipeline corpus
-LINEARIZATION_FUNCTIONS = {'raw_input': ee2e.linearize_slot_value_mr,
-                           'selected_input': ee2e.linearize_slot_value_mr,
-                           'ordered_input': ee2e.linearize_slot_value_mr,
-                           'sentence_segmented_input': ee2e.linearize_slot_value_mr_seq,
-                           'lexicalisation': lambda lex_string: lex_string.strip().split(),
-                           'referring_expressions': lambda reg_string: reg_string.strip().split(),
-                           'raw_output': lambda text: text.strip().split()}
 
 
 class MultitaskSeq2SeqGenerator(object):
@@ -115,25 +105,36 @@ def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
     return input_embeddings, output_embeddings
 
 
-def load_data_from_config(data_config) -> ee2e.EnrichedE2ECorpus:
+SUPPORTED_DATASETS = {"enriched-e2e", "enriched-webnlg"}
+
+
+
+def load_data_from_config(data_config: "omegaconf.DictConfig"):
     if data_config.corpus.name not in SUPPORTED_DATASETS:
         raise ValueError(f"Unsupported dataset: {data_config.corpus.name}")
     if data_config.corpus.name == 'enriched-e2e':
         logger.info("Loading Enriched E2E Challenge Data...")
-        return ee2e.load_enriched_e2e(data_config.corpus.splits)
+        return enunlg.data_management.enriched_e2e.load_enriched_e2e(data_config.corpus.splits)
+    elif data_config.corpus.name == 'enriched-webnlg':
+        logger.info("Loading Enriched WebNLG (v1.6) Data...")
+        return enunlg.data_management.enriched_webnlg.load_enriched_webnlg(data_config.corpus.splits)
     else:
-        raise ValueError("We can only load the Enriched E2E dataset right now.")
+        raise ValueError("We can only load the Enriched E2E and Enriched WebNLG datasets right now.")
 
 
 def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
 
-    ee2e_corpus = load_data_from_config(config.data)
-    ee2e_corpus.print_summary_stats()
+    corpus = load_data_from_config(config.data)
+    corpus.print_summary_stats()
     print("____________")
 
+    if config.data.corpus.name == "enriched-webnlg":
+        linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
+    elif config.data.corpus.name == "enriched-e2e":
+        linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
-    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(ee2e_corpus, mapping_functions=LINEARIZATION_FUNCTIONS)
+    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
     text_corpus.print_summary_stats()
     text_corpus.print_sample(0, 100, 10)
 
@@ -152,7 +153,6 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
         task_embeddings.append([output_embeddings[layer][idx] for layer in generator.layers[1:]])
 
     multitask_training_pairs = list(zip(input_embeddings, task_embeddings))
-    multitask_training_pairs = multitask_training_pairs[:50]
     print(f"{multitask_training_pairs[0]=}")
     print(f"{len(multitask_training_pairs)=}")
     nine_to_one_split_idx = int(len(multitask_training_pairs) * 0.9)
