@@ -1,0 +1,21 @@
+reference:
+  inputs: datasets/processed/e2e_devset_mrs.txt
+  texts: datasets/processed/e2e_devset_texts.txt
+
+generated:
+  texts: datasets/processed/e2e_devset_texts.txt
+
+ser:
+  basic: True
+
+bleu:
+  class_kwargs:
+    lowercase: False
+#    force: False
+#    tokenize: None
+    smooth_method: 'exp'
+#    smooth_value: None
+    max_ngram_order: 4
+#    effective_order: False
+#    trg_lang: 'en'
+  n_bootstrap: 1
