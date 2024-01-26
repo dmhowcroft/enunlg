@@ -41,9 +41,9 @@ class MultitaskLSTMEncoder(s2s.BasicLSTMEncoder):
         else:
             self._hidden_state_init_func = lambda *args: torch.randn(*args)/torch.sqrt(torch.Tensor([self.num_hidden_dims]))
 
-    def forward(self, input_indices, init_h_c_state):
+    def forward(self, input_indices: torch.Tensor, init_h_c_state):
         # This assumes batch first and batch size = 1
-        embedded = self.embedding(input_indices).view(1, len(input_indices), -1)
+        embedded = self.embedding(input_indices).view(1, input_indices.size()[0], -1)
         outputs, h_c_state = [], []
         layer_outputs, layer_h_c_state = self.lstm(embedded, init_h_c_state)
         outputs.append(layer_outputs)
@@ -163,11 +163,11 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
 
         dec_input = torch.tensor([[final_layer_decoder.start_idx]], device=DEVICE)
 
-        dec_outputs = []
+        dec_outputs = torch.zeros(max_output_length)
         for dec_index in range(max_output_length):
             dec_output, dec_h_c_state = final_layer_decoder(dec_input, dec_h_c_state, enc_output)
             topv, topi = dec_output.data.topk(1)
-            dec_outputs.append(topi.item())
+            dec_outputs[dec_index] = topi.item()
             if topi.item() == self.task_decoders[final_layer_name].stop_idx:
                 break
             dec_input = topi.squeeze().detach()

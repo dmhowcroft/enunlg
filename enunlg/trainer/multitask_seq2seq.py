@@ -61,7 +61,8 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         prev_chunk_start_time = start_time
         loss_this_interval = 0
         loss_to_plot = []
-        self.tb_writer.add_graph(self.model, pairs[0])
+        print(pairs[0][0])
+        self.tb_writer.add_graph(self.model, pairs[0][0])
         self.tb_writer.flush()
 
         # Add handling for proportional recording intervals
