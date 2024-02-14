@@ -1,6 +1,7 @@
 import logging
 import os
 import tarfile
+import tempfile
 
 from typing import Any, Dict, List
 
@@ -91,6 +92,32 @@ class MultitaskSeq2SeqGenerator(object):
             with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
                 out_file.add(filepath, arcname=os.path.basename(filepath))
 
+    @classmethod
+    def load(cls, filepath):
+        if tarfile.is_tarfile(filepath):
+            with tarfile.open(filepath, 'r') as generator_file:
+                tmp_dir = tempfile.mkdtemp()
+                tarfile_member_names = generator_file.getmembers()
+                print(tarfile_member_names)
+                generator_file.extractall(tmp_dir)
+                root_name = tarfile_member_names[0].name[:-18]
+                with open(os.path.join(tmp_dir, root_name, "__class__.__name__"), 'r') as class_name_file:
+                    class_name = class_name_file.read().strip()
+                    assert class_name == cls.__name__
+                model = enunlg.encdec.multitask_seq2seq.DeepEncoderMultiDecoderSeq2SeqAttn.load_from_dir(os.path.join(tmp_dir, root_name, 'model'))
+                dummy_pipeline_item = enunlg.data_management.pipelinecorpus.PipelineItem({layer_name: "" for layer_name in model.layer_names})
+                dummy_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus([dummy_pipeline_item])
+                dummy_corpus.pop()
+                new_generator = cls(dummy_corpus, model.config)
+                state_dict = omegaconf.OmegaConf.load(os.path.join(tmp_dir, root_name, "_save_state.yaml"))
+                vocabs = {}
+                for vocab in state_dict.vocabularies:
+                    print(vocab)
+                    vocabs[vocab] = enunlg.vocabulary.TokenVocabulary.load_from_dir(os.path.join(tmp_dir, root_name, 'vocabularies', vocab))
+                    print(f"{vocabs[vocab].size=}")
+                return new_generator
+
+
 
 def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
     layer_names = list(vocabularies.keys())
@@ -106,7 +133,6 @@ def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
 
 
 SUPPORTED_DATASETS = {"enriched-e2e", "enriched-webnlg"}
-
 
 
 def load_data_from_config(data_config: "omegaconf.DictConfig"):
@@ -129,9 +155,32 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     corpus.print_summary_stats()
     print("____________")
 
-    if config.data.corpus.name == "enriched-webnlg":
+    if config.data.corpus.name == "enriched-e2e" and config.data.input_mode == "rdf":
+        entries_to_drop = []
+        for idx, entry in enumerate(corpus):
+            # Some of the EnrichedE2E entries have incorrect semantics.
+            # Checking for the restaurant name in the input selections is the fastest way to check.
+            if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
+                agent = entry.raw_input['name']
+                entry.raw_input = enunlg.util.mr_to_rdf(entry.raw_input)
+                entry.selected_input = enunlg.util.mr_to_rdf(entry.selected_input)
+                entry.ordered_input = enunlg.util.mr_to_rdf(entry.ordered_input)
+                sentence_mrs = []
+                for sent_mr in entry.sentence_segmented_input:
+                    # print(sent_mr)
+                    sent_mr_dict = dict(sent_mr)
+                    sent_mr_dict['name'] = agent
+                    # print(sent_mr_dict)
+                    sentence_mrs.append(enunlg.util.mr_to_rdf(sent_mr_dict))
+                entry.sentence_segmented_input = sentence_mrs
+            else:
+                entries_to_drop.append(idx)
+        for idx in reversed(entries_to_drop):
+            corpus.pop(idx)
+
+    if config.data.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
-    elif config.data.corpus.name == "enriched-e2e":
+    elif config.data.input_mode == "e2e":
         linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
     text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
@@ -153,28 +202,71 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
         task_embeddings.append([output_embeddings[layer][idx] for layer in generator.layers[1:]])
 
     multitask_training_pairs = list(zip(input_embeddings, task_embeddings))
+    # multitask_training_pairs = multitask_training_pairs[:100]
     print(f"{multitask_training_pairs[0]=}")
     print(f"{len(multitask_training_pairs)=}")
     nine_to_one_split_idx = int(len(multitask_training_pairs) * 0.9)
     trainer.train_iterations(multitask_training_pairs[:nine_to_one_split_idx], multitask_training_pairs[nine_to_one_split_idx:])
 
-    generator.save(os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.pt"))
+    generator.save(os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.nlg"))
 
 
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
 
-    test_corpus = load_data_from_config(config)
-    # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
-    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(test_corpus, mapping_functions=LINEARIZATION_FUNCTIONS)
+    corpus = load_data_from_config(config.data)
 
-    generator: MultitaskSeq2SeqGenerator = torch.load(config.test.generator_file)
+    if config.data.corpus.name == "enriched-e2e" and config.data.input_mode == "rdf":
+        entries_to_drop = []
+        for idx, entry in enumerate(corpus):
+            # Some of the EnrichedE2E entries have incorrect semantics.
+            # Checking for the restaurant name in the input selections is the fastest way to check.
+            if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
+                agent = entry.raw_input['name']
+                entry.raw_input = enunlg.util.mr_to_rdf(entry.raw_input)
+                entry.selected_input = enunlg.util.mr_to_rdf(entry.selected_input)
+                entry.ordered_input = enunlg.util.mr_to_rdf(entry.ordered_input)
+                sentence_mrs = []
+                for sent_mr in entry.sentence_segmented_input:
+                    # print(sent_mr)
+                    sent_mr_dict = dict(sent_mr)
+                    sent_mr_dict['name'] = agent
+                    # print(sent_mr_dict)
+                    sentence_mrs.append(enunlg.util.mr_to_rdf(sent_mr_dict))
+                entry.sentence_segmented_input = sentence_mrs
+            else:
+                entries_to_drop.append(idx)
+        for idx in reversed(entries_to_drop):
+            corpus.pop(idx)
+
+    if config.data.input_mode == "rdf":
+        linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
+    elif config.data.input_mode == "e2e":
+        linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
+    # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
+    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
+
+    generator = MultitaskSeq2SeqGenerator.load(config.test.generator_file)
     total_parameters = enunlg.util.count_parameters(generator.model)
     if shortcircuit == 'parameters':
         exit()
 
-    test_input, test_output = prep_embeddings(test_corpus, generator.vocabularies)
-    test_ref = [item_layer_embeddings[-1] for item_layer_embeddings in test_output]
+    # drop entries that are too long
+    indices_to_drop = []
+    for idx, entry in enumerate(text_corpus):
+        for layer in entry.annotation_layers:
+            if len(entry[layer]) > generator.max_length_any_layer:
+                indices_to_drop.append(idx)
+                break
+
+    logger.info(f"Dropping {len(indices_to_drop)} entries for having too long an input rep.")
+    for idx in reversed(indices_to_drop):
+        text_corpus.pop(idx)
+
+    test_input, test_output = prep_embeddings(text_corpus, generator.vocabularies)
+    test_ref = test_output['raw_output']
+    logger.info(f"Num. input embeddings: {len(test_input)}")
+    logger.info(f"Num. input refs: {len(test_ref)}")
     outputs = [generator.model.generate(embedding) for embedding in test_input]
 
     best_outputs = [" ".join(generator.vocabularies['raw_output'].get_tokens([int(x) for x in output])) for output in outputs]
