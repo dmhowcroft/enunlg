@@ -43,3 +43,13 @@ def log_sequence(seq, indent="") -> None:
 def set_random_seeds(seed) -> None:
     random.seed(seed)
     torch.manual_seed(seed)
+
+
+def mr_to_rdf(mr):
+    from enunlg.data_management.webnlg import RDFTriple, RDFTripleList
+    tripleset = []
+    agent = mr['name']
+    for slot in mr:
+        if slot != "name":
+            tripleset.append(RDFTriple(agent, slot, mr[slot]))
+    return RDFTripleList(tripleset)
