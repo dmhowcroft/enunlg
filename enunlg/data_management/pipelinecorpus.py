@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, TextIO, Tuple, TypeVar, Callable, Iterable
+from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple, TypeVar, Union
 
 import logging
 import random
@@ -181,7 +181,7 @@ class TextPipelineCorpus(PipelineCorpus):
 
 
 class PipelineCorpusMapper(object):
-    def __init__(self, input_format, output_format, annotation_layer_mappings: Dict[str, Callable]):
+    def __init__(self, input_format, output_format, annotation_layer_mappings: Union[Dict[str, Callable], Callable]):
         """
         Create a function which will map from `input_format` to `output_format` using `annotation_layer_mappings`.
         """
@@ -195,6 +195,8 @@ class PipelineCorpusMapper(object):
             # logger.debug('passed the format check')
             output_seq = []
             for entry in input_corpus:
+                # Each entry can actually contain multiple lexicalisations,
+                # so we need to build up the entry as we iterate.
                 output = []
                 for layer in self.annotation_layer_mappings:
                     # logger.debug(f"processing {layer}")
