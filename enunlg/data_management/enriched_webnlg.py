@@ -34,6 +34,7 @@ DELEX_LABELS = ["AGENT-1",
 
 DIFFER = difflib.Differ()
 
+
 def extract_reg_from_template_and_text(text: str, template: str, print_diff: bool = False) -> MutableMapping[str, List[str]]:
     diff = DIFFER.compare(text.strip().split(), template.strip().split())
     keys = []
@@ -106,18 +107,22 @@ def extract_raw_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
     triplelist = RDFTripleList([])
     for tripleset in entry.modifiedtripleset.mtriple:
         triplelist.append(RDFTriple.from_string(tripleset))
-    return [triplelist]
+    return triplelist
 
 
 def extract_selected_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
     targets = []
     for lex in entry.lex:
-        triplelist = []
-        for sentence in lex.sortedtripleset.sentence:
-            for sortedtriple in sentence.striple:
-                triplelist.append(RDFTriple.from_string(sortedtriple))
-        targets.append(RDFTripleList(triplelist))
+        targets.append(extract_selected_input_from_lex(lex))
     return targets
+
+
+def extract_selected_input_from_lex(lex) -> RDFTripleList:
+    triplelist = []
+    for sentence in lex.sortedtripleset.sentence:
+        for sortedtriple in sentence.striple:
+            triplelist.append(RDFTriple.from_string(sortedtriple))
+    return RDFTripleList(triplelist)
 
 
 def extract_ordered_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
@@ -129,6 +134,14 @@ def extract_ordered_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
                 triplelist.append(RDFTriple.from_string(sortedtriple))
         targets.append(RDFTripleList(triplelist))
     return targets
+
+
+def extract_ordered_input_from_lex(lex) -> RDFTripleList:
+    triplelist = []
+    for sentence in lex.sortedtripleset.sentence:
+        for sortedtriple in sentence.striple:
+            triplelist.append(RDFTriple.from_string(sortedtriple))
+    return RDFTripleList(triplelist)
 
 
 def extract_sentence_segmented_input(entry: EnrichedWebNLGEntry) -> List[Tuple[Tuple[RDFTriple]]]:
@@ -144,71 +157,111 @@ def extract_sentence_segmented_input(entry: EnrichedWebNLGEntry) -> List[Tuple[T
     return targets
 
 
+def extract_sentence_segmented_input_from_lex(lex) -> Tuple[Tuple[RDFTriple]]:
+    selected_inputs = []
+    for sentence in lex.sortedtripleset.sentence:
+        triplelist = []
+        for sortedtriple in sentence.striple:
+            triplelist.append(RDFTriple.from_string(sortedtriple))
+        selected_inputs.append(tuple(triplelist))
+    return tuple(selected_inputs)
+
+
 def extract_lexicalization(entry: EnrichedWebNLGEntry) -> List[str]:
     return [target.lexicalization for target in entry.lex]
 
 
-def extract_reg_in_lex(entry: EnrichedWebNLGEntry) -> List[str]:
+def extract_reg(entry: EnrichedWebNLGEntry) -> List[str]:
     texts = [target.text for target in entry.lex]
     templates = [target.template for target in entry.lex]
     lexes = [target.lexicalization for target in entry.lex]
     reg_lexes = []
     for text, template, lex in zip(texts, templates, lexes):
-        if None in (text, template, lex):
-            print(entry)
-            print(text)
-            print(template)
-            print(lex)
-        reg_dict = extract_reg_from_template_and_text(text, template)
-        new_lex = []
-        curr_text_idx = 0
-        for lex_token in lex.split():
-            if lex_token.startswith("__"):
-                # print(f"looking for {lex_token}")
-                possible_targets = reg_dict[lex_token]
-                match_found = False
-                curr_rest = text.split()[curr_text_idx:]
-                for possible_target in possible_targets:
-                    target_tokens = tuple(possible_target.split())
-                    num_tokens = len(target_tokens)
-                    # print(target_tokens)
-                    # print(curr_rest)
-                    if num_tokens == 1:
-                        for text_idx, text_token in enumerate(curr_rest):
-                            if text_token in possible_targets:
-                                new_lex.append(text_token)
-                                curr_text_idx += text_idx
-                                match_found = True
-                                break
-                    elif num_tokens > 1:
-                        parts = []
-                        for i in range(len(target_tokens)):
-                            parts.append(curr_rest[i:])
-                        for start_idx, token_tuple in enumerate(zip(*parts)):
-                            # print(token_tuple)
-                            if token_tuple == target_tokens:
-                                new_lex.extend(target_tokens)
-                                curr_text_idx += start_idx + len(target_tokens)
-                                match_found = True
-                                break
-                    else:
-                        raise ValueError("Must have possible targets for each slot!")
-                    if match_found:
-                        break
-                if not match_found:
-                    logger.debug(f"Could not create reg_lex text for {lex_token}")
-                    logger.debug(f"in:\n{text}\n{template}\n{lex}\n{reg_dict}")
-                    extract_reg_from_template_and_text(text, template, print_diff=True)
-                    new_lex.append(lex_token)
-                    # raise ValueError(f"Could not create reg_lex text for {lex_token} in:\n{text}\n{template}\n{lex}\n{reg_dict}")
-            else:
-                new_lex.append(lex_token)
-        reg_lexes.append(" ".join(new_lex))
+        reg_lexes.append(extract_reg_from_lex(text, template, lex))
     return reg_lexes
+
+
+def extract_reg_from_lex(text, template, lex):
+    if None in (text, template, lex):
+        print(text)
+        print(template)
+        print(lex)
+        return None
+    reg_dict = extract_reg_from_template_and_text(text, template)
+    new_lex = []
+    curr_text_idx = 0
+    for lex_token in lex.split():
+        if lex_token.startswith("__"):
+            # print(f"looking for {lex_token}")
+            possible_targets = reg_dict[lex_token]
+            match_found = False
+            curr_rest = text.split()[curr_text_idx:]
+            for possible_target in possible_targets:
+                target_tokens = tuple(possible_target.split())
+                num_tokens = len(target_tokens)
+                # print(target_tokens)
+                # print(curr_rest)
+                if num_tokens == 1:
+                    for text_idx, text_token in enumerate(curr_rest):
+                        if text_token in possible_targets:
+                            new_lex.append(text_token)
+                            curr_text_idx += text_idx
+                            match_found = True
+                            break
+                elif num_tokens > 1:
+                    parts = []
+                    for i in range(len(target_tokens)):
+                        parts.append(curr_rest[i:])
+                    for start_idx, token_tuple in enumerate(zip(*parts)):
+                        # print(token_tuple)
+                        if token_tuple == target_tokens:
+                            new_lex.extend(target_tokens)
+                            curr_text_idx += start_idx + len(target_tokens)
+                            match_found = True
+                            break
+                else:
+                    raise ValueError("Must have possible targets for each slot!")
+                if match_found:
+                    break
+            if not match_found:
+                logger.debug(f"Could not create reg_lex text for {lex_token}")
+                logger.debug(f"in:\n{text}\n{template}\n{lex}\n{reg_dict}")
+                extract_reg_from_template_and_text(text, template, print_diff=True)
+                new_lex.append(lex_token)
+                # raise ValueError(f"Could not create reg_lex text for {lex_token} in:\n{text}\n{template}\n{lex}\n{reg_dict}")
+        else:
+            new_lex.append(lex_token)
+    return " ".join(new_lex)
 
 
 def extract_raw_output(entry: EnrichedWebNLGEntry) -> List[str]:
     return [target.text for target in entry.lex]
+
+
+def raw_to_usable(raw_corpus) -> List[EnrichedWebNLGItem]:
+    """This will drop any entries which contain 'None' for any annotation layers"""
+    out_corpus = []
+    for entry in raw_corpus:
+        raw_input = extract_raw_input(entry)
+        for lex in entry.lex:
+            selected_input = extract_selected_input_from_lex(lex)
+            ordered_input = extract_ordered_input_from_lex(lex)
+            sentence_segmented_input = extract_sentence_segmented_input_from_lex(lex)
+            lexicalization = lex.lexicalization
+            raw_output = lex.text
+            if None in [raw_input, selected_input, ordered_input, sentence_segmented_input, raw_output, lex.template, lexicalization]:
+                continue
+            reg_string = extract_reg_from_lex(raw_output, lex.template, lexicalization)
+            if reg_string is None:
+                continue
+            out_corpus.append(EnrichedWebNLGItem({'raw_input': raw_input,
+                                                  'selected_input': selected_input,
+                                                  'ordered_input': ordered_input,
+                                                  'sentence_segmented_input': sentence_segmented_input,
+                                                  'lexicalisation': lexicalization,
+                                                  'referring_expressions': reg_string,
+                                                  'raw_output': raw_output}))
+    return out_corpus
 
 
 def load_enriched_webnlg(splits: Optional[Iterable[str]] = None, enriched_webnlg_config: Optional[omegaconf.DictConfig] = None) -> EnrichedWebNLGCorpus:
@@ -243,19 +296,12 @@ def load_enriched_webnlg(splits: Optional[Iterable[str]] = None, enriched_webnlg
     for entry in corpus:
         for target in entry.lex:
             target.text = TGenTokeniser.tokenise(target.text)
-    enriched_webnlg_factory = PipelineCorpusMapper(EnrichedWebNLGCorpusRaw, EnrichedWebNLGItem,
-                                                {'raw-input': lambda entry: extract_raw_input(entry),
-                                                 'selected-input': extract_selected_input,
-                                                 'ordered-input': extract_ordered_input,
-                                                 'sentence-segmented-input': extract_sentence_segmented_input,
-                                                 'lexicalisation': extract_lexicalization,
-                                                 'referring-expressions': lambda x: ["no reg"],
-                                                 'raw-output': extract_raw_output})
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
-    corpus: EnrichedWebNLGCorpus = EnrichedWebNLGCorpus(enriched_webnlg_factory(corpus))
+    corpus: EnrichedWebNLGCorpus = EnrichedWebNLGCorpus(raw_to_usable(corpus))
     logger.info(f"Corpus contains {len(corpus)} entries.")
     return corpus
+
 
 def sanitize_subjects_and_objects(subject_or_object: str) -> List[str]:
     out_string = subject_or_object.replace("_", " ").replace(",", " , ")
@@ -297,6 +343,6 @@ LINEARIZATION_FUNCTIONS = {'raw_input': linearize_rdf_triple_list,
                            'selected_input': linearize_rdf_triple_list,
                            'ordered_input': linearize_rdf_triple_list,
                            'sentence_segmented_input': linearize_seq_of_rdf_triple_lists,
-                           'lexicalisation': lambda lex_string: lex_string.strip().split() if lex_string is not None else "",
+                           'lexicalisation': lambda lex_string: lex_string.strip().split(),
                            'referring_expressions': lambda reg_string: reg_string.strip().split(),
                            'raw_output': lambda text: text.strip().split()}
