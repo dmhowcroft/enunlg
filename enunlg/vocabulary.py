@@ -280,6 +280,16 @@ class TokenVocabulary(object):
             with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
                 out_file.add(filepath, arcname=os.path.basename(filepath))
 
+    @classmethod
+    def load_from_dir(cls, filepath):
+        with open(os.path.join(filepath, '__class__.__name__'), 'r') as class_file:
+            assert class_file.read().strip() == cls.__name__
+            new_instance = cls([])
+            state = omegaconf.OmegaConf.load(os.path.join(filepath, "_save_state.yaml"))
+            for attribute in state:
+                setattr(new_instance, attribute, state[attribute])
+            return new_instance
+
     def __dir__(self):
         return self.STATE_ATTRIBUTES
 
@@ -413,7 +423,8 @@ class TokenVocabulary(object):
         for integer in token_integers:
             if drop_filler and integer in self.filler:
                 continue
-            output.append(self.get_token(integer))
+            # cast to int to make sure it's not a torch tensor
+            output.append(self.get_token(int(integer)))
         return output
 
     def pretty_string(self, token_integers, drop_filler=True) -> str:
