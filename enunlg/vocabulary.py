@@ -232,7 +232,8 @@ class IntegralInformVocabulary(IntegralDialogueActVocabulary):
 
 
 class TokenVocabulary(object):
-    STATE_ATTRIBUTES = ("dataset", "_token2int", "_max_index", "_filler")
+    STATE_ATTRIBUTES = ("_token2int", "_max_index", "_filler")
+
     def __init__(self, dataset: Iterable[Iterable[str]]) -> None:
         """
 
