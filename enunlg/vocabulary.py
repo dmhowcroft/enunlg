@@ -289,6 +289,7 @@ class TokenVocabulary(object):
             state = omegaconf.OmegaConf.load(os.path.join(filepath, "_save_state.yaml"))
             for attribute in state:
                 setattr(new_instance, attribute, state[attribute])
+            new_instance._token2int = bidict.OrderedBidict(new_instance._token2int)
             return new_instance
 
     def __dir__(self):
