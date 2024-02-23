@@ -2,7 +2,6 @@
 
 import logging
 import os
-import random
 
 from hydra.core.hydra_config import HydraConfig
 
@@ -10,8 +9,7 @@ import hydra
 import omegaconf
 import torch
 
-import enunlg.trainer.sclstm
-import enunlg.util
+from enunlg.data_management.loader import load_data_from_config
 
 import enunlg.data_management.cued as cued
 import enunlg.embeddings.binary as onehot
@@ -19,7 +17,11 @@ import enunlg.encdec.sclstm as sclstm_models
 import enunlg.meaning_representation.dialogue_acts as da_lib
 import enunlg.normalisation.norms as norms
 import enunlg.trainer
+import enunlg.trainer.sclstm
+import enunlg.util
 import enunlg.vocabulary
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_DATASETS = {"sfx-restaurant", "e2e-cleaned"}
 
