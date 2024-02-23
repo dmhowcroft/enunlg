@@ -181,7 +181,7 @@ class TextPipelineCorpus(PipelineCorpus):
 
 
 class PipelineCorpusMapper(object):
-    def __init__(self, input_format, output_format, annotation_layer_mappings: Union[Dict[str, Callable], Callable]):
+    def __init__(self, input_format, output_format, annotation_layer_mappings: Dict[str, Callable]):
         """
         Create a function which will map from `input_format` to `output_format` using `annotation_layer_mappings`.
         """
