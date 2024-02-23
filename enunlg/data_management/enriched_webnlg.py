@@ -7,6 +7,7 @@ import logging
 import os
 
 import omegaconf
+import regex
 import xsdata.exceptions
 import xsdata.formats.dataclass.parsers as xsparsers
 
@@ -319,17 +320,30 @@ def sanitize_predicates(predicate: str) -> List[str]:
     return [predicate]
 
 
+
+
+snake_case_regex = regex.compile('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))')
+
+
+def tokenize_slots_and_values(value):
+    out_string = snake_case_regex.sub(r'_\1', value)
+    out_string = out_string.replace("_", " ").replace(",", " , ")
+    out_tokens = out_string.split()
+    # omit empty strings caused by multiple spaces in a row
+    return [token for token in out_tokens if token]
+
+
 def linearize_rdf_triple_list(rdf_triple_list: Union[List[RDFTriple], RDFTripleList]) -> List[str]:
     tokens = ["<RDF_TRIPLES>"]
     for rdf_triple in rdf_triple_list:
         tokens.append("<SUBJECT>")
-        tokens.extend(sanitize_subjects_and_objects(rdf_triple.subject))
+        tokens.extend(tokenize_slots_and_values(rdf_triple.subject))
         tokens.append("</SUBJECT>")
         tokens.append("<PREDICATE>")
-        tokens.extend(sanitize_predicates(rdf_triple.predicate))
+        tokens.extend([x.lower() for x in tokenize_slots_and_values(rdf_triple.predicate)])
         tokens.append("</PREDICATE>")
         tokens.append("<OBJECT>")
-        tokens.extend(sanitize_subjects_and_objects(rdf_triple.object))
+        tokens.extend(tokenize_slots_and_values(rdf_triple.object))
         tokens.append("</OBJECT>")
         tokens.append("<TRIPLE_SEP>")
     tokens.append("</RDF_TRIPLES>")

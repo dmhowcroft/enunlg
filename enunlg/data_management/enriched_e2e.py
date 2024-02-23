@@ -7,6 +7,7 @@ import logging
 import os
 
 import omegaconf
+import regex
 import xsdata.formats.dataclass.parsers as xsparsers
 
 from enunlg.formats.xml.enriched_e2e import EnrichedE2EEntries, EnrichedE2EEntry
@@ -249,6 +250,16 @@ def sanitize_values(value):
     return value.replace(" ", "_").replace("'", "_")
 
 
+snake_case_regex = regex.compile('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))')
+
+
+def tokenize_slots_and_values(value):
+    out_string = snake_case_regex.sub(r'_\1', value)
+    out_string = out_string.replace("_", " ").replace(",", " , ")
+    out_tokens = out_string.split()
+    # omit empty strings caused by multiple spaces in a row
+    return [token for token in out_tokens if token]
+
 def sanitize_slot_names(slot_name):
     return slot_name
 
@@ -256,8 +267,9 @@ def sanitize_slot_names(slot_name):
 def linearize_slot_value_mr(mr: enunlg.meaning_representation.slot_value.SlotValueMR):
     tokens = ["<MR>"]
     for slot in mr:
-        tokens.append(sanitize_slot_names(slot))
-        tokens.append(sanitize_values(mr[slot]))
+        tokens.extend([x.lower() for x in tokenize_slots_and_values(slot)])
+        tokens.append("==")
+        tokens.extend(tokenize_slots_and_values(mr[slot]))
         tokens.append("<PAIR_SEP>")
     tokens.append("</MR>")
     return tokens
