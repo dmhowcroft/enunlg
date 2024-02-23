@@ -9,6 +9,7 @@ import hydra
 import torch
 
 from enunlg.data_management.enriched_e2e import LINEARIZATION_FUNCTIONS
+from enunlg.data_management.loader import load_data_from_config
 from enunlg.trainer.multitask_seq2seq import MultitaskTransformerTrainer
 
 import enunlg.data_management.pipelinecorpus
@@ -169,22 +170,6 @@ def prep_embeddings(corpus, vocab, uniform_max_length=True):
         layer_name: [torch.tensor(vocab.get_ints_with_right_padding(item, max_length_any_layer), dtype=torch.long) for item in
                      corpus.items_by_layer(layer_name)] for layer_name in layer_names[1:]}
     return input_embeddings, output_embeddings
-
-
-SUPPORTED_DATASETS = {"enriched-e2e", "enriched-webnlg"}
-
-
-def load_data_from_config(data_config: "omegaconf.DictConfig"):
-    if data_config.corpus.name not in SUPPORTED_DATASETS:
-        raise ValueError(f"Unsupported dataset: {data_config.corpus.name}")
-    if data_config.corpus.name == 'enriched-e2e':
-        logger.info("Loading Enriched E2E Challenge Data...")
-        return enunlg.data_management.enriched_e2e.load_enriched_e2e(data_config.corpus.splits)
-    elif data_config.corpus.name == 'enriched-webnlg':
-        logger.info("Loading Enriched WebNLG (v1.6) Data...")
-        return enunlg.data_management.enriched_webnlg.load_enriched_webnlg(data_config.corpus.splits)
-    else:
-        raise ValueError("We can only load the Enriched E2E and Enriched WebNLG datasets right now.")
 
 
 def train_multitask_transformer(config: omegaconf.DictConfig, shortcircuit=None):

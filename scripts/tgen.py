@@ -12,15 +12,15 @@ import hydra
 import omegaconf
 import torch
 
-import enunlg.trainer.tgen
-
-import enunlg.encdec.tgen
+from enunlg.data_management.loader import load_data_from_config
 from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg.data_management.e2e_challenge as e2e
 import enunlg.embeddings.binary as onehot
+import enunlg.encdec.tgen
 import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.trainer
+import enunlg.trainer.tgen
 import enunlg.util
 import enunlg.vocabulary
 
@@ -39,22 +39,6 @@ def prep_tgen_integer_reps(input_corpus: e2e.E2ECorpus) -> Tuple[
     mr_int_mapper = enunlg.vocabulary.IntegralInformVocabulary([mr for mr, _ in input_corpus])
     text_int_mapper = enunlg.vocabulary.TokenVocabulary([text.strip().split() for _, text in input_corpus])
     return mr_int_mapper, text_int_mapper
-
-
-SUPPORTED_DATASETS = {"e2e", "e2e-cleaned"}
-
-
-def load_data_from_config(data_config) -> e2e.E2ECorpus:
-    if data_config.corpus.name not in SUPPORTED_DATASETS:
-        raise ValueError(f"Unsupported dataset: {data_config.corpus.name}")
-    if data_config.corpus.name == 'e2e':
-        logger.info("Loading E2E Challenge Data...")
-        return e2e.load_e2e(data_config.corpus.splits)
-    elif data_config.corpus.name == 'e2e-cleaned':
-        logger.info("Loading the Cleaned E2E Data...")
-        return e2e.load_e2e(data_config.corpus.splits, original=False)
-    else:
-        raise ValueError("We can only load the e2e dataset right now.")
 
 
 def preprocess_corpus_from_config(preprocessing_config, corpus_to_process) -> e2e.E2ECorpus:
