@@ -275,13 +275,15 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')
-def multitask_seq2seq_attn_main(config: omegaconf.DictConfig):
+def multitask_seq2seq_attn_main(config: omegaconf.DictConfig) -> None:
+    # Add Hydra-managed output dir to the config dictionary
     hydra_config = hydra.core.hydra_config.HydraConfig.get()
     hydra_managed_output_dir = hydra_config.runtime.output_dir
     logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
     with omegaconf.open_dict(config):
         config.output_dir = hydra_managed_output_dir
 
+    # Pass the config to the appropriate function depending on what mode we are using
     if config.mode == "train":
         train_multitask_seq2seq_attn(config)
     elif config.mode == "parameters":
