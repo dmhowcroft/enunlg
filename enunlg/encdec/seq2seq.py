@@ -128,11 +128,6 @@ class LSTMDecWithAttention(BasicDecoder):
 
 class Seq2SeqAttn(torch.nn.Module):
     def __init__(self, input_vocab_size, output_vocab_size, model_config=None):
-        """
-        :param input_vocab:
-        :param output_vocab:
-        :param model_config:
-        """
         super().__init__()
         if model_config is None:
             # Set defaults
