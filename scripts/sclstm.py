@@ -136,7 +136,7 @@ def train_sclstm(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     # record_interval = 519 gives us 6 splits per epoch
     trainer = enunlg.trainer.sclstm.SCLSTMTrainer(sclstm, training_config=config.train)
     losses_for_plotting = trainer.train_iterations(training_pairs)
-    torch.save(sclstm.state_dict(), os.path.join(hydra_managed_output_dir, "trained-sclstm-model.pt"))
+    torch.save(sclstm.state_dict(), os.path.join(config.output_dir, "trained-sclstm-model.pt"))
 
 
 if __name__ == "__main__":
