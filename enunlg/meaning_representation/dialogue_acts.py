@@ -31,6 +31,12 @@ class MultivaluedDA(DialogueAct):
         """
         super(MultivaluedDA, self).__init__(act_type, slot_values)
 
+    def __len__(self):
+        return sum([len(self.slot_values[slot]) for slot in self.slot_values])
+
+    def __hash__(self):
+        return hash((self.act_type, box.Box(self.slot_values, frozen_box=True)))
+
     @staticmethod
     def from_slot_value_list(act_type, slot_values: Iterable[Tuple[str, str]]) -> "MultivaluedDA":
         """Create a MultivalueDA when we have an iterable of slot-value pairs rather than a ready-to-go Box."""
