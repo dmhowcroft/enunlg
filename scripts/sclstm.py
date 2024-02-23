@@ -27,25 +27,40 @@ SUPPORTED_DATASETS = {"sfx-restaurant", "e2e-cleaned"}
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='sclstm_as-released')
-def train_sclstm(config: omegaconf.DictConfig):
-    original_working_dir = hydra.utils.get_original_cwd()
-    hydra_managed_output_dir = HydraConfig.get().runtime.output_dir
+def sclstm_main(config: omegaconf.DictConfig) -> None:
+    # Add Hydra-managed output dir to the config dictionary
+    hydra_config = hydra.core.hydra_config.HydraConfig.get()
+    hydra_managed_output_dir = hydra_config.runtime.output_dir
     logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
-    seed = config.random_seed
-    random.seed(seed)
-    torch.manual_seed(seed)
-    if config.data.corpus.name not in SUPPORTED_DATASETS:
-        raise ValueError(f"Unsupported dataset: {config.data.corpus.name}")
-    if config.data.corpus.name == 'sfx-restaurant':
-        logger.info("Loading SFX Restaurant data...")
-        corpus = cued.load_sfx_restaurant(config.data.corpus.splits)
-    elif config.data.corpus.name == 'e2e-cleaned':
-        logger.info("Loading E2E Challenge Corpus (cleaned)...")
-        import enunlg.data_management.e2e_challenge as e2e
-        logger.info("Converting E2E corpus to CUED corpus")
-        corpus = cued.CUEDCorpus([cued.CUEDPair(da_lib.MultivaluedDA.from_slot_value_list(act_type="inform", slot_values=pair.mr.items()), pair.text) for pair in e2e.load_e2e(config.data.corpus.splits, original=False)])
+    with omegaconf.open_dict(config):
+        config.output_dir = hydra_managed_output_dir
+        config.original_working_directory = hydra.utils.get_original_cwd()
+
+    # Pass the config to the appropriate function depending on what mode we are using
+    if config.mode == "train":
+        train_sclstm(config)
+    elif config.mode == "parameters":
+        train_sclstm(config, shortcircuit="parameters")
+    elif config.mode == "test":
+        raise NotImplementedError("Testing mode for SCLSTM models not yet implemented")
+        # test_sclstm(config)
     else:
-        raise ValueError(f"We can only load the following datasets right now: {SUPPORTED_DATASETS}")
+        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+
+
+def train_sclstm(config: omegaconf.DictConfig, shortcircuit=None) -> None:
+    enunlg.util.set_random_seeds(config.random_seed)
+
+
+    corpus = load_data_from_config(config.data)
+    corpus.print_summary_stats()
+    print("____________")
+
+    if config.data.corpus.name == "e2e-cleaned" and config.data.input_mode == "cued":
+        logger.info("Converting E2E corpus to CUED corpus")
+        corpus = [cued.CUEDPair(da_lib.MultivaluedDA.from_slot_value_list(act_type="inform", slot_values=pair.mr.items()), pair.text) for pair in corpus]
+        corpus = cued.CUEDCorpus(corpus)
+
     if config.preprocessing.text.normalise == 'sclstm':
         # sclstm does normalisation before delexicalisation
         # SC-LSTM just uses existing whitespace, so the ExistingWhitespaceTokeniser is valid and doesn't need to do anything.
@@ -72,8 +87,8 @@ def train_sclstm(config: omegaconf.DictConfig):
                                       for pair in corpus])
         else:
             raise ValueError("We can only handle the mode where we also check permutations of multiple values right now.")
-    os.makedirs(os.path.join(original_working_dir, 'datasets', 'delexed-corpora'), exist_ok=True)
-    with open(os.path.join(original_working_dir, 'datasets', 'delexed-corpora', f"{config.data.corpus.name}.{'_'.join(config.data.corpus.splits)}.sclstm-norm.sclstm-delex.txt"), 'w') as corpus_copy_file:
+    os.makedirs(os.path.join(config.original_working_directory, 'datasets', 'delexed-corpora'), exist_ok=True)
+    with open(os.path.join(config.original_working_directory, 'datasets', 'delexed-corpora', f"{config.data.corpus.name}.{'_'.join(config.data.corpus.splits)}.sclstm-norm.sclstm-delex.txt"), 'w') as corpus_copy_file:
         for pair in corpus:
             corpus_copy_file.write(f"{pair.text}\n")
 
@@ -102,6 +117,11 @@ def train_sclstm(config: omegaconf.DictConfig):
         sclstm = sclstm_models.SCLSTMModelAsReleasedWithGlove(da_embedder, config.model.embeddings.file, config.model).to(DEVICE)
     else:
         sclstm = sclstm_models.SCLSTMModelAsReleased(da_embedder, text_int_mapper, model_config=config.model)
+
+    total_parameters = enunlg.util.count_parameters(sclstm)
+    if shortcircuit == 'parameters':
+        exit()
+
     train_dec_embs = []
     for _, text in corpus:
         train_dec_embs.append(sclstm.output_vocab.get_ints(text.split()))
@@ -120,4 +140,4 @@ def train_sclstm(config: omegaconf.DictConfig):
 
 
 if __name__ == "__main__":
-    corpus = train_sclstm()
+    corpus = sclstm_main()
