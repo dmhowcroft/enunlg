@@ -1,7 +1,7 @@
 """SCLSTM Cells and RNNs based on https://github.com/pytorch/pytorch/blob/master/benchmarks/fastrnns/custom_lstms.py"""
 
 from collections import namedtuple
-from typing import List, Optional, Tuple, TypeVar, TYPE_CHECKING
+from typing import List, Tuple, TypeVar, TYPE_CHECKING
 
 import logging
 import random
@@ -26,14 +26,14 @@ SCLSTMState = namedtuple('SCLSTMState', ['hx', 'cx', 'dx'])
 
 
 class JitLSTMCell(torch.jit.ScriptModule):
-    def __init__(self, input_size, hidden_size):
+    def __init__(self, num_input_dims, num_hidden_dims):
         super(JitLSTMCell, self).__init__()
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.weight_ih = torch.nn.Parameter(torch.randn(4 * hidden_size, input_size))
-        self.weight_hh = torch.nn.Parameter(torch.randn(4 * hidden_size, hidden_size))
-        self.bias_ih = torch.nn.Parameter(torch.randn(4 * hidden_size))
-        self.bias_hh = torch.nn.Parameter(torch.randn(4 * hidden_size))
+        self.input_size = num_input_dims
+        self.hidden_size = num_hidden_dims
+        self.weight_ih = torch.nn.Parameter(torch.randn(4 * num_hidden_dims, num_input_dims))
+        self.weight_hh = torch.nn.Parameter(torch.randn(4 * num_hidden_dims, num_hidden_dims))
+        self.bias_ih = torch.nn.Parameter(torch.randn(4 * num_hidden_dims))
+        self.bias_hh = torch.nn.Parameter(torch.randn(4 * num_hidden_dims))
 
     @torch.jit.script_method
     def forward(self,
