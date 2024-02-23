@@ -32,6 +32,10 @@ class DialogueActEmbeddings(object):
         return self._dimensionality
 
     @property
+    def size(self):
+        return self.dimensionality
+
+    @property
     def dialogue_act_size(self):
         return len(self._acts)
 
