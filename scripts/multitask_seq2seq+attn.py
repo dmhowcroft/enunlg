@@ -138,6 +138,32 @@ def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
     return input_embeddings, output_embeddings
 
 
+def validate_enriched_e2e(corpus) -> None:
+    entries_to_drop = []
+    for idx, entry in enumerate(corpus):
+        # Some of the EnrichedE2E entries have incorrect semantics.
+        # Checking for the restaurant name in the input selections is the fastest way to check.
+        if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
+            pass
+        else:
+            entries_to_drop.append(idx)
+    for idx in reversed(entries_to_drop):
+        corpus.pop(idx)
+
+
+def translate_e2e_to_rdf(corpus) -> None:
+    for entry in corpus:
+        agent = entry.raw_input['name']
+        entry.raw_input = enunlg.util.mr_to_rdf(entry.raw_input)
+        entry.selected_input = enunlg.util.mr_to_rdf(entry.selected_input)
+        entry.ordered_input = enunlg.util.mr_to_rdf(entry.ordered_input)
+        sentence_mrs = []
+        for sent_mr in entry.sentence_segmented_input:
+            sent_mr_dict = dict(sent_mr)
+            sent_mr_dict['name'] = agent
+            sentence_mrs.append(enunlg.util.mr_to_rdf(sent_mr_dict))
+        entry.sentence_segmented_input = sentence_mrs
+
 
 def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
@@ -146,35 +172,21 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     corpus.print_summary_stats()
     print("____________")
 
+    # Drop entries that are missing data
+    validate_enriched_e2e(corpus)
+
     if config.data.corpus.name == "enriched-e2e" and config.data.input_mode == "rdf":
-        entries_to_drop = []
-        for idx, entry in enumerate(corpus):
-            # Some of the EnrichedE2E entries have incorrect semantics.
-            # Checking for the restaurant name in the input selections is the fastest way to check.
-            if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
-                agent = entry.raw_input['name']
-                entry.raw_input = enunlg.util.mr_to_rdf(entry.raw_input)
-                entry.selected_input = enunlg.util.mr_to_rdf(entry.selected_input)
-                entry.ordered_input = enunlg.util.mr_to_rdf(entry.ordered_input)
-                sentence_mrs = []
-                for sent_mr in entry.sentence_segmented_input:
-                    # print(sent_mr)
-                    sent_mr_dict = dict(sent_mr)
-                    sent_mr_dict['name'] = agent
-                    # print(sent_mr_dict)
-                    sentence_mrs.append(enunlg.util.mr_to_rdf(sent_mr_dict))
-                entry.sentence_segmented_input = sentence_mrs
-            else:
-                entries_to_drop.append(idx)
-        for idx in reversed(entries_to_drop):
-            corpus.pop(idx)
+        translate_e2e_to_rdf(corpus)
 
     if config.data.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
+        linearization_metadata = "enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS"
     elif config.data.input_mode == "e2e":
         linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
+        linearization_metadata = "enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS"
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
     text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
+    text_corpus.metadata['linearization_functions'] = linearization_metadata
     text_corpus.print_summary_stats()
     text_corpus.print_sample(0, 100, 10)
 
@@ -206,29 +218,14 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
     enunlg.util.set_random_seeds(config.random_seed)
 
     corpus = load_data_from_config(config.data)
+    corpus.print_summary_stats()
+    print("____________")
+
+    # Drop entries that are missing data
+    validate_enriched_e2e(corpus)
 
     if config.data.corpus.name == "enriched-e2e" and config.data.input_mode == "rdf":
-        entries_to_drop = []
-        for idx, entry in enumerate(corpus):
-            # Some of the EnrichedE2E entries have incorrect semantics.
-            # Checking for the restaurant name in the input selections is the fastest way to check.
-            if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
-                agent = entry.raw_input['name']
-                entry.raw_input = enunlg.util.mr_to_rdf(entry.raw_input)
-                entry.selected_input = enunlg.util.mr_to_rdf(entry.selected_input)
-                entry.ordered_input = enunlg.util.mr_to_rdf(entry.ordered_input)
-                sentence_mrs = []
-                for sent_mr in entry.sentence_segmented_input:
-                    # print(sent_mr)
-                    sent_mr_dict = dict(sent_mr)
-                    sent_mr_dict['name'] = agent
-                    # print(sent_mr_dict)
-                    sentence_mrs.append(enunlg.util.mr_to_rdf(sent_mr_dict))
-                entry.sentence_segmented_input = sentence_mrs
-            else:
-                entries_to_drop.append(idx)
-        for idx in reversed(entries_to_drop):
-            corpus.pop(idx)
+        translate_e2e_to_rdf(corpus)
 
     if config.data.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
