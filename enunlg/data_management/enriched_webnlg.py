@@ -289,7 +289,8 @@ def load_enriched_webnlg(splits: Optional[Iterable[str]] = None, enriched_webnlg
     corpus: EnrichedWebNLGCorpusRaw = EnrichedWebNLGCorpusRaw(filename_or_list=fns)
     corpus.metadata = {'name': corpus_name,
                        'splits': splits,
-                       'directory': data_directory}
+                       'directory': data_directory,
+                       'raw': True}
     logger.info(len(corpus))
 
     # tokenize texts
@@ -299,6 +300,10 @@ def load_enriched_webnlg(splits: Optional[Iterable[str]] = None, enriched_webnlg
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
     corpus: EnrichedWebNLGCorpus = EnrichedWebNLGCorpus(raw_to_usable(corpus))
+    corpus.metadata = {'name': corpus_name,
+                       'splits': splits,
+                       'directory': data_directory,
+                       'raw': False}
     logger.info(f"Corpus contains {len(corpus)} entries.")
     return corpus
 

@@ -218,7 +218,8 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
     corpus: EnrichedE2ECorpusRaw = EnrichedE2ECorpusRaw(filename_or_list=fns)
     corpus.metadata = {'name': corpus_name,
                        'splits': splits,
-                       'directory': data_directory}
+                       'directory': data_directory,
+                       'raw': True}
     logger.info(len(corpus))
 
     # tokenize texts
@@ -236,6 +237,10 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
     corpus: EnrichedE2ECorpus = EnrichedE2ECorpus(enriched_e2e_factory(corpus))
+    corpus.metadata = {'name': corpus_name,
+                       'splits': splits,
+                       'directory': data_directory,
+                       'raw': False}
     logger.info(f"Corpus contains {len(corpus)} entries.")
     return corpus
 
