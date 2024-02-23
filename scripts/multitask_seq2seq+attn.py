@@ -25,6 +25,7 @@ logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
 
 class MultitaskSeq2SeqGenerator(object):
     STATE_ATTRIBUTES = ('layers', 'vocabularies', 'max_length_any_layer', 'corpus_metadata', 'model')
+
     def __init__(self, corpus: enunlg.data_management.pipelinecorpus.TextPipelineCorpus, model_config: omegaconf.DictConfig):
         """
         Create a multi-decoder seq2seq+attn model based on `corpus`.
@@ -98,7 +99,6 @@ class MultitaskSeq2SeqGenerator(object):
             with tarfile.open(filepath, 'r') as generator_file:
                 tmp_dir = tempfile.mkdtemp()
                 tarfile_member_names = generator_file.getmembers()
-                print(tarfile_member_names)
                 generator_file.extractall(tmp_dir)
                 root_name = tarfile_member_names[0].name[:-18]
                 with open(os.path.join(tmp_dir, root_name, "__class__.__name__"), 'r') as class_name_file:
@@ -109,14 +109,13 @@ class MultitaskSeq2SeqGenerator(object):
                 dummy_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus([dummy_pipeline_item])
                 dummy_corpus.pop()
                 new_generator = cls(dummy_corpus, model.config)
+                new_generator.model = model
                 state_dict = omegaconf.OmegaConf.load(os.path.join(tmp_dir, root_name, "_save_state.yaml"))
                 vocabs = {}
                 for vocab in state_dict.vocabularies:
-                    print(vocab)
                     vocabs[vocab] = enunlg.vocabulary.TokenVocabulary.load_from_dir(os.path.join(tmp_dir, root_name, 'vocabularies', vocab))
-                    print(f"{vocabs[vocab].size=}")
+                new_generator.vocabularies = vocabs
                 return new_generator
-
 
 
 def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
@@ -124,6 +123,11 @@ def prep_embeddings(corpus, vocabularies, uniform_max_length=True):
     input_layer_name = layer_names[0]
     if uniform_max_length:
         max_length_any_layer = corpus.max_layer_length
+    else:
+        # e2e rdf test
+        max_length_any_layer = 99
+        # e2e normal test
+        # max_length_any_layer = 78
     input_embeddings = [torch.tensor(vocabularies[input_layer_name].get_ints_with_left_padding(item, max_length_any_layer),
                                      dtype=torch.long) for item in corpus.items_by_layer(input_layer_name)]
     output_embeddings = {
@@ -245,6 +249,8 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
         linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
     text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
+    text_corpus.print_summary_stats()
+    text_corpus.print_sample(0, 100, 10)
 
     generator = MultitaskSeq2SeqGenerator.load(config.test.generator_file)
     total_parameters = enunlg.util.count_parameters(generator.model)
@@ -254,16 +260,15 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
     # drop entries that are too long
     indices_to_drop = []
     for idx, entry in enumerate(text_corpus):
-        for layer in entry.annotation_layers:
-            if len(entry[layer]) > generator.max_length_any_layer:
-                indices_to_drop.append(idx)
-                break
+        if len(entry['raw_input']) > generator.max_length_any_layer:
+            indices_to_drop.append(idx)
+            break
 
     logger.info(f"Dropping {len(indices_to_drop)} entries for having too long an input rep.")
     for idx in reversed(indices_to_drop):
         text_corpus.pop(idx)
 
-    test_input, test_output = prep_embeddings(text_corpus, generator.vocabularies)
+    test_input, test_output = prep_embeddings(text_corpus, generator.vocabularies, False)
     test_ref = test_output['raw_output']
     logger.info(f"Num. input embeddings: {len(test_input)}")
     logger.info(f"Num. input refs: {len(test_ref)}")
@@ -271,6 +276,9 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
 
     best_outputs = [" ".join(generator.vocabularies['raw_output'].get_tokens([int(x) for x in output])) for output in outputs]
     ref_outputs = [" ".join(generator.vocabularies['raw_output'].get_tokens([int(x) for x in output])) for output in test_ref]
+    for best, ref in zip(best_outputs[:10], ref_outputs[:10]):
+        logger.info(best)
+        logger.info(ref)
 
     # Calculate BLEU compared to targets
     bleu = sm.BLEU()
