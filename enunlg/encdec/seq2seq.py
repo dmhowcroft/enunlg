@@ -233,7 +233,7 @@ class Seq2SeqAttn(torch.nn.Module):
         loss.backward()
         optimizer.step()
         # mean loss per word returned in order for losses for sents of diff lengths to be comparable
-        return loss.item() / dec_emb.size(0)
+        return loss.item() / dec_emb.size()[0]
 
     def generate(self, enc_emb, max_length=50):
         return self.generate_greedy(enc_emb, max_length)
