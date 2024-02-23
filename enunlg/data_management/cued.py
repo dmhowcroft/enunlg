@@ -46,6 +46,25 @@ class CUEDCorpus(iocorpus.IOCorpus):
     def __init__(self, seq: Iterable[CUEDPair]):
         super().__init__(seq)
 
+    def print_summary_stats(self):
+        print(f"{self.metadata=}")
+        print(f"num entries: {len(self)}")
+        mr_lengths = []
+        mr_types = set()
+        text_lengths = []
+        text_types = set()
+        for item in self:
+            mr_lengths.append(len(item.mr))
+            mr_types.add(item.mr)
+            text_lengths.append(len(item.text.split()))
+            text_types.add(tuple(item.text.split()))
+        
+        print(f"MRs:\t\t{sum(mr_lengths)/len(mr_lengths):.2f} [{min(mr_lengths)},{max(mr_lengths)}]")
+        print(f"    with {len(mr_types)} types across {len(mr_lengths)} tokens.")
+        print("NB: these values don't tokenize MRs")
+
+        print(f"Texts:\t\t{sum(text_lengths)/len(text_lengths):.2f} [{min(text_lengths)},{max(text_lengths)}]")
+        print(f"    with {len(text_types)} types across {len(text_lengths)} tokens.")
 
 def parse_cued_dialogue_acts(dialogue_act_string, keep_values=False):
     """Adapted from RNNLG/loader/data_reader.py DialogueActParser.parse()"""
