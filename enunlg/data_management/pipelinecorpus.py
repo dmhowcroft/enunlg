@@ -135,6 +135,7 @@ class TextPipelineCorpus(PipelineCorpus):
     @classmethod
     def from_existing(cls, corpus: PipelineCorpus, mapping_functions):
         out_corpus = TextPipelineCorpus(corpus)
+        out_corpus.metadata = corpus.metadata
         for item in out_corpus:
             for layer in item.annotation_layers:
                 item[layer] = mapping_functions[layer](item[layer])
