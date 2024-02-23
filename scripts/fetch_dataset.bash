@@ -24,7 +24,10 @@ function fetch_dataset {
         exit 1
       fi ;;
     cued)
-      git clone git@github.com:shawnwun/RNNLG.git ;;
+      if [ ! -d RNNLG ]
+      then
+        git clone git@github.com:shawnwun/RNNLG.git
+      fi ;;
     e2e)
       wget https://github.com/tuetschek/e2e-dataset/releases/download/v1.0.0/e2e-dataset.zip
       unzip e2e-dataset.zip ;;
@@ -50,6 +53,9 @@ function fetch_dataset {
 
 function process_dataset {
   case $1 in
+    cued)
+      mkdir -p datasets/glove-vectors
+      tail -n10164 datasets/raw/RNNLG/vec/vectors-80.txt > datasets/glove-vectors/rnnlg.vectors-80.txt ;;
     e2e-enriched)
       cp -rf datasets/raw/EnrichedE2E datasets/processed/.
       # Fix errors  in corpus annotation
