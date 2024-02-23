@@ -287,16 +287,10 @@ SCLSTM_RELEASED_CONFIG.slot_value_size = 15
 
 class BaseSCLSTMModel(torch.nn.Module):
     def __init__(self,
-                 da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
-                 token_int_mapper: "enunlg.vocabulary.TokenVocabulary",
+                 input_vocab_size: int,
+                 output_vocab_size: int,
                  model_config=None,
                  sclstm_layer=None):
-        """
-        :param da_embedder:
-        :param token_int_mapper:
-        :param model_config:
-        :param sclstm_layer:
-        """
         super().__init__()
         self.config = model_config
 
@@ -305,12 +299,9 @@ class BaseSCLSTMModel(torch.nn.Module):
         self.one_slot_per_word_xi = 100
 
         # Set basic properties
-        self.input_vocab = da_embedder
-        self.input_vocab_size = da_embedder.dimensionality
-
-        self.output_vocab = token_int_mapper
-        self.output_vocab_size = token_int_mapper.max_index + 1
-        self.output_stop_token = self.output_vocab.stop_token_int
+        self.input_vocab_size = input_vocab_size
+        self.output_vocab_size = output_vocab_size
+        self.output_stop_token = model_config.embeddings.stop_idx
 
         # Initialize networks
         self.token_embeddings = torch.nn.Embedding(self.output_vocab_size, self.config.embeddings.dimensions)
@@ -455,53 +446,52 @@ class BaseSCLSTMModel(torch.nn.Module):
 
 
 class SCLSTMModelAsDescribed(BaseSCLSTMModel):
-    def __init__(self, da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
-                 token_int_mapper: "enunlg.vocabulary.TokenVocabulary", model_config=None):
+    def __init__(self, input_vocab_size, output_vocab_size, model_config=None):
         if model_config is None:
             # Set defaults
             model_config = SCLSTM_DESCRIBED_CONFIG
         sclstm_layer = SCLSTMLayer(SCLSTMCellPaper, model_config.mr_size, model_config.embeddings.dimensions,
                                    model_config.num_hidden_dims)
-        super().__init__(da_embedder, token_int_mapper, model_config, sclstm_layer)
+        super().__init__(input_vocab_size, output_vocab_size, model_config, sclstm_layer)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
 
 
 class SCLSTMModelAsReleased(BaseSCLSTMModel):
-    def __init__(self, da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
-                 token_int_mapper: "enunlg.vocabulary.TokenVocabulary", model_config=None):
+    def __init__(self, input_vocab_size, output_vocab_size, model_config=None):
         if model_config is None:
             # Set defaults
             model_config = SCLSTM_RELEASED_CONFIG
         sclstm_layer = SCLSTMLayer(SCLSTMCellReleased, model_config.act_size, model_config.slot_value_size,
                                    model_config.embeddings.dimensions,
                                    model_config.num_hidden_dims)
-        super().__init__(da_embedder, token_int_mapper, model_config, sclstm_layer)
+        super().__init__(input_vocab_size, output_vocab_size, model_config, sclstm_layer)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
 
 
 class SCLSTMModelAsDescribedWithGlove(SCLSTMModelAsDescribed):
-    def __init__(self, da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
+    def __init__(self, input_vocab_size,
                  glove_filepath: str, model_config=None):
         token_int_mapper, embedding_layer = enunlg.embeddings.glove.GloVeEmbeddings.from_word_embedding_txt(
             glove_filepath, with_vocab=True)
         if model_config is None:
             model_config = SCLSTM_DESCRIBED_CONFIG
         model_config.embeddings.mode = 'glove'
-        super().__init__(da_embedder, token_int_mapper, model_config=model_config)
+        super().__init__(input_vocab_size, token_int_mapper.size, model_config=model_config)
         self.token_embeddings = embedding_layer
         self.token_embeddings.requires_grad_(model_config.embeddings.backprop)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
 
 
 class SCLSTMModelAsReleasedWithGlove(SCLSTMModelAsReleased):
-    def __init__(self, da_embedder: "enunlg.embeddings.binary.DialogueActEmbeddings",
+    def __init__(self, input_vocab_size,
                  glove_filepath: str, model_config=None):
         token_int_mapper, embedding_layer = enunlg.embeddings.glove.GloVeEmbeddings.from_word_embedding_txt(
             glove_filepath, with_vocab=True)
         if model_config is None:
             model_config = SCLSTM_RELEASED_CONFIG
         model_config.embeddings.mode = 'glove'
-        super().__init__(da_embedder, token_int_mapper, model_config=model_config)
+        super().__init__(input_vocab_size, token_int_mapper.size, model_config=model_config)
+        self.output_vocab = token_int_mapper
         self.token_embeddings = embedding_layer
         self.token_embeddings.requires_grad_(model_config.embeddings.backprop)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)

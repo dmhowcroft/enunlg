@@ -51,7 +51,6 @@ def sclstm_main(config: omegaconf.DictConfig) -> None:
 def train_sclstm(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
 
-
     corpus = load_data_from_config(config.data)
     corpus.print_summary_stats()
     print("____________")
@@ -114,9 +113,10 @@ def train_sclstm(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     DEVICE = config.pytorch.device
     if config.model.embeddings.mode == 'glove':
         logger.info(f"Using GloVe embeddings from {config.model.embeddings.file}")
-        sclstm = sclstm_models.SCLSTMModelAsReleasedWithGlove(da_embedder, config.model.embeddings.file, config.model).to(DEVICE)
+        sclstm = sclstm_models.SCLSTMModelAsReleasedWithGlove(da_embedder.size, config.model.embeddings.file, config.model).to(DEVICE)
+        text_int_mapper = sclstm.output_vocab
     else:
-        sclstm = sclstm_models.SCLSTMModelAsReleased(da_embedder, text_int_mapper, model_config=config.model)
+        sclstm = sclstm_models.SCLSTMModelAsReleased(da_embedder.size, text_int_mapper.size, model_config=config.model)
 
     total_parameters = enunlg.util.count_parameters(sclstm)
     if shortcircuit == 'parameters':
@@ -124,7 +124,7 @@ def train_sclstm(config: omegaconf.DictConfig, shortcircuit=None) -> None:
 
     train_dec_embs = []
     for _, text in corpus:
-        train_dec_embs.append(sclstm.output_vocab.get_ints(text.split()))
+        train_dec_embs.append(text_int_mapper.get_ints(text.split()))
     logger.info("The same texts from above as lists of vocab indices")
     enunlg.util.log_sequence(train_dec_embs[:10], indent="... ")
 
