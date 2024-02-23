@@ -4,7 +4,9 @@ from collections import namedtuple
 from typing import List, Tuple, TypeVar, TYPE_CHECKING
 
 import logging
+import os
 import random
+import tarfile
 
 import omegaconf
 import torch
@@ -316,6 +318,10 @@ class BaseSCLSTMModel(torch.nn.Module):
         # Here we might add this instead:
         # torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
 
+    @property
+    def _init_args(self):
+        raise NotImplementedError()
+
     def init_h_c_state(self, batch_size=1):
         return LSTMState(torch.zeros((batch_size, self.config.num_hidden_dims)),
                          torch.zeros((batch_size, self.config.num_hidden_dims)))
@@ -444,6 +450,24 @@ class BaseSCLSTMModel(torch.nn.Module):
     def output_rep_to_string(self, output_token_indices) -> str:
         return self.output_vocab.pretty_string(output_token_indices)
 
+    def _save_classname_to_dir(self, directory_path):
+        with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
+            class_file.write(self.__class__.__name__)
+
+    def save(self, filepath, tgz=True):
+        os.mkdir(filepath)
+        self._save_classname_to_dir(filepath)
+        with open(f"{filepath}/_state_dict.pt", 'wb') as state_file:
+            torch.save(self.state_dict(), state_file)
+        with open(f"{filepath}/model_config.yaml", 'w') as config_file:
+            omegaconf.OmegaConf.save(self.config, config_file)
+        with open(f"{filepath}/_init_args.yaml", 'w') as init_args_file:
+            omegaconf.OmegaConf.save(self._init_args,
+                                     init_args_file)
+        if tgz:
+            with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
+                out_file.add(filepath, arcname=os.path.basename(filepath))
+
 
 class SCLSTMModelAsDescribed(BaseSCLSTMModel):
     def __init__(self, input_vocab_size, output_vocab_size, model_config=None):
@@ -454,6 +478,11 @@ class SCLSTMModelAsDescribed(BaseSCLSTMModel):
                                    model_config.num_hidden_dims)
         super().__init__(input_vocab_size, output_vocab_size, model_config, sclstm_layer)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
+
+    @property
+    def _init_args(self):
+        return {"input_vocab_size": self.input_vocab_size,
+                "output_vocab_size": self.output_vocab_size}
 
 
 class SCLSTMModelAsReleased(BaseSCLSTMModel):
@@ -467,12 +496,18 @@ class SCLSTMModelAsReleased(BaseSCLSTMModel):
         super().__init__(input_vocab_size, output_vocab_size, model_config, sclstm_layer)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
 
+    @property
+    def _init_args(self):
+        return {"input_vocab_size": self.input_vocab_size,
+                "output_vocab_size": self.output_vocab_size}
+
 
 class SCLSTMModelAsDescribedWithGlove(SCLSTMModelAsDescribed):
     def __init__(self, input_vocab_size,
                  glove_filepath: str, model_config=None):
         token_int_mapper, embedding_layer = enunlg.embeddings.glove.GloVeEmbeddings.from_word_embedding_txt(
             glove_filepath, with_vocab=True)
+        self.glove_filepath = glove_filepath
         if model_config is None:
             model_config = SCLSTM_DESCRIBED_CONFIG
         model_config.embeddings.mode = 'glove'
@@ -481,12 +516,19 @@ class SCLSTMModelAsDescribedWithGlove(SCLSTMModelAsDescribed):
         self.token_embeddings.requires_grad_(model_config.embeddings.backprop)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
 
+    @property
+    def _init_args(self):
+        # TODO rewrite these classes to handle embeddings differently so we don't need the filename here
+        return {"input_vocab_size": self.input_vocab_size,
+                "glove_filepath": self.glove_filepath}
+
 
 class SCLSTMModelAsReleasedWithGlove(SCLSTMModelAsReleased):
     def __init__(self, input_vocab_size,
                  glove_filepath: str, model_config=None):
         token_int_mapper, embedding_layer = enunlg.embeddings.glove.GloVeEmbeddings.from_word_embedding_txt(
             glove_filepath, with_vocab=True)
+        self.glove_filepath = glove_filepath
         if model_config is None:
             model_config = SCLSTM_RELEASED_CONFIG
         model_config.embeddings.mode = 'glove'
@@ -495,6 +537,12 @@ class SCLSTMModelAsReleasedWithGlove(SCLSTMModelAsReleased):
         self.token_embeddings = embedding_layer
         self.token_embeddings.requires_grad_(model_config.embeddings.backprop)
         torch.nn.utils.clip_grad_value_(self.parameters(), 1.0)
+
+    @property
+    def _init_args(self):
+        # TODO rewrite these classes to handle embeddings differently so we don't need the filename here
+        return {"input_vocab_size": self.input_vocab_size,
+                "glove_filepath": self.glove_filepath}
 
 
 SCLSTMModel = TypeVar("SCLSTMModel", bound=BaseSCLSTMModel)
