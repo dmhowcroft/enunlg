@@ -95,6 +95,14 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
                                                                 start_token_idx=self.config[f"decoder_{name}"].embeddings.get('start_idx'),
                                                                 stop_token_idx=self.config[f"decoder_{name}"].embeddings.get('stop_idx'))
 
+        self._max_input_length = None
+
+    @property
+    def max_input_length(self):
+        if self._max_input_length is None:
+            self._max_input_length = self.task_decoders['raw_output'].get_parameter("attention.bias").size()[0]
+        return self._max_input_length
+
     def encode(self, enc_emb: torch.Tensor):
         """
         Run encoding for a single set of integer inputs.
