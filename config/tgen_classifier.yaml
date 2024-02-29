@@ -2,6 +2,8 @@ defaults:
   - data/corpus: e2e_train
   - _self_
 
+random_seed: 42
+
 preprocessing:
   mr:
     ignore_order: True
@@ -10,7 +12,7 @@ preprocessing:
     delexicalise:
       mode: split_on_caps # could also be strict
       slots: [name, near]
-    tokenise: tgen
+    normalise: tgen
 
 pytorch:
   device: cpu
