@@ -66,7 +66,9 @@ class TGenSemClassifier(torch.nn.Module):
 
         loss = 0.0
         output = self.forward(text_ints)
-        loss += criterion(output.squeeze(0).squeeze(0), mr_onehot)
+        logger.debug(f"{mr_onehot.size()=}")
+        logger.debug(f"{output.size()=}")
+        loss += criterion(output.unsqueeze(0), mr_onehot)
 
         loss.backward()
         self.optimizer.step()

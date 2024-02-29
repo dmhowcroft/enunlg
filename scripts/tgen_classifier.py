@@ -4,14 +4,16 @@ import logging
 
 import hydra
 import omegaconf
-import regex
 import torch
 
-import enunlg.data_management.e2e_challenge as e2e
-import enunlg.meaning_representation.dialogue_acts as das
-import enunlg.embeddings.binary as onehot
+from enunlg.data_management.loader import load_data_from_config
+from enunlg.nlu import binary_mr_classifier
+from enunlg.normalisation.tokenisation import TGenTokeniser
+
 import enunlg
-import enunlg as binary_mr_classifier
+import enunlg.data_management.e2e_challenge as e2e
+import enunlg.embeddings.binary as onehot
+import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.util
 
 logger = logging.getLogger(__name__)
@@ -30,77 +32,37 @@ def prep_tgen_text_integer_reps(input_corpus):
     """
     return enunlg.vocabulary.TokenVocabulary([text.strip().split() for _, text in input_corpus])
 
-
-def tokenize(text):
-    """
-    Tokenize the given text (i.e., insert spaces around all tokens)
-
-    For this function:
-    Copyright © 2014-2017 Institute of Formal and Applied Linguistics,
-                      Charles University, Prague.
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
-    You may obtain a copy of the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the License for the specific language governing permissions and
-    limitations under the License.
-    """
-    toks = ' ' + text + ' '  # for easier regexes
-
-    # enforce space around all punct
-    toks = regex.sub(r'(([^\p{IsAlnum}\s\.\,−\-])\2*)', r' \1 ', toks)  # all punct (except ,-.)
-    toks = regex.sub(r'([^\p{N}])([,.])([^\p{N}])', r'\1 \2 \3', toks)  # ,. & no numbers
-    toks = regex.sub(r'([^\p{N}])([,.])([\p{N}])', r'\1 \2 \3', toks)  # ,. preceding numbers
-    toks = regex.sub(r'([\p{N}])([,.])([^\p{N}])', r'\1 \2 \3', toks)  # ,. following numbers
-    toks = regex.sub(r'(–-)([^\p{N}])', r'\1 \2', toks)  # -/– & no number following
-    toks = regex.sub(r'(\p{N} *|[^ ])(-)', r'\1\2 ', toks)  # -/– & preceding number/no-space
-    toks = regex.sub(r'([-−])', r' \1', toks)  # -/– : always space before
-
-    # keep apostrophes together with words in most common contractions
-    toks = regex.sub(r'([\'’´]) (s|m|d|ll|re|ve)\s', r' \1\2 ', toks)  # I 'm, I 've etc.
-    toks = regex.sub(r'(n [\'’´]) (t\s)', r' \1\2 ', toks)  # do n't
-
-    # other contractions, as implemented in Treex
-    toks = regex.sub(r' ([Cc])annot\s', r' \1an not ', toks)
-    toks = regex.sub(r' ([Dd]) \' ye\s', r' \1\' ye ', toks)
-    toks = regex.sub(r' ([Gg])imme\s', r' \1im me ', toks)
-    toks = regex.sub(r' ([Gg])onna\s', r' \1on na ', toks)
-    toks = regex.sub(r' ([Gg])otta\s', r' \1ot ta ', toks)
-    toks = regex.sub(r' ([Ll])emme\s', r' \1em me ', toks)
-    toks = regex.sub(r' ([Mm])ore\'n\s', r' \1ore \'n ', toks)
-    toks = regex.sub(r' \' ([Tt])is\s', r' \'\1 is ', toks)
-    toks = regex.sub(r' \' ([Tt])was\s', r' \'\1 was ', toks)
-    toks = regex.sub(r' ([Ww])anna\s', r' \1an na ', toks)
-
-    # clean extra space
-    toks = regex.sub(r'\s+', ' ', toks)
-    toks = toks.strip()
-    return toks
-
-
 SUPPORTED_DATASETS = {"e2e", "e2e-cleaned"}
 
 
-@hydra.main(config_path='../config', config_name='tgen_classifier')
-def run_tgen(config: omegaconf.DictConfig):
-    if config.data.corpus.name not in SUPPORTED_DATASETS:
-        raise ValueError(f"Unsupported dataset: {config.data.corpus.name}")
-    if config.data.corpus.name == 'e2e':
-        logger.info("Loading E2E Challenge Data...")
-        corpus = e2e.load_e2e(config.data.corpus.splits)
-    elif config.data.corpus.name == 'e2e-cleaned':
-        logger.info("Loading the Cleaned E2E Data...")
-        corpus = e2e.load_e2e(config.data.corpus.splits, original=False)
+@hydra.main(version_base=None, config_path='../config', config_name='tgen_classifier')
+def tgen_classifier_main(config: omegaconf.DictConfig) -> None:
+    # Add Hydra-managed output dir to the config dictionary
+    hydra_config = hydra.core.hydra_config.HydraConfig.get()
+    hydra_managed_output_dir = hydra_config.runtime.output_dir
+    logger.info(f"Logs and output will be written to {hydra_managed_output_dir}")
+    with omegaconf.open_dict(config):
+        config.output_dir = hydra_managed_output_dir
+
+    # Pass the config to the appropriate function depending on what mode we are using
+    if config.mode == "train":
+        train_tgen_classifier(config)
+    elif config.mode == "parameters":
+        train_tgen_classifier(config, shortcircuit="parameters")
+    elif config.mode == "test":
+        test_tgen_classifier(config)
     else:
-        raise ValueError("We can only load the e2e dataset right now.")
+        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+
+def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
+    enunlg.util.set_random_seeds(config.random_seed)
+
+    corpus = load_data_from_config(config.data)
+    corpus.print_summary_stats()
+    print("____________")
+
     if config.preprocessing.text.normalise == 'tgen':
-        corpus = e2e.E2ECorpus([e2e.E2EPair(pair.mr, tokenize(pair.text)) for pair in corpus])
+        corpus = e2e.E2ECorpus([e2e.E2EPair(pair.mr, TGenTokeniser.tokenize(pair.text)) for pair in corpus])
     if config.preprocessing.text.delexicalise:
         logger.info('Applying delexicalisation...')
         if config.preprocessing.text.delexicalise.mode == 'split_on_caps':
@@ -153,4 +115,4 @@ def run_tgen(config: omegaconf.DictConfig):
 
 
 if __name__ == "__main__":
-    corpus = run_tgen()
+    corpus = tgen_classifier_main()
