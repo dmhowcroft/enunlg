@@ -123,6 +123,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
             target_bitvector = np.round(o.tolist())
             output_bitvector = np.round(prediction)
             error += sum(abs(target_bitvector - output_bitvector))
+        logger.info(f"Current error count: {error}")
         if error < self._early_stopping_scores[-1]:
             self._early_stopping_scores.append(error)
             self._early_stopping_scores = sorted(self._early_stopping_scores)[:-1]
