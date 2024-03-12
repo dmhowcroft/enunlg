@@ -2,8 +2,7 @@ from typing import List, TYPE_CHECKING
 
 import logging
 import os
-import random
-import time
+import tarfile
 
 import omegaconf
 import torch
@@ -19,14 +18,13 @@ logger = logging.getLogger(__name__)
 
 
 class TGenSemClassifier(torch.nn.Module):
-    def __init__(self, text_vocabulary: "enunlg.vocabulary.TokenVocabulary",
-                 onehot_encoder: "enunlg.embeddings.binary.DialogueActEmbeddings",
+    def __init__(self, text_vocab_size: int,
+                 bitvector_encoder_dims: int,
                  model_config=None) -> None:
         super().__init__()
         if model_config is None:
             # Set defaults
             model_config = omegaconf.DictConfig({'name': 'tgen_classifier',
-                                    'max_mr_length': 30,
                                     'text_encoder':
                                         {'embeddings':
                                             {'mode': 'random',
@@ -38,11 +36,11 @@ class TGenSemClassifier(torch.nn.Module):
                                     })
         self.config = model_config
 
-        self.text_vocabulary = text_vocabulary
-        self.onehot_encoder = onehot_encoder
+        self.text_vocab_size = text_vocab_size
+        self.bitvector_encoder_dims = bitvector_encoder_dims
 
-        self.text_encoder = enunlg.encdec.tgen.TGenEnc(self.text_vocabulary.max_index + 1, self.num_hidden_dims)
-        self.classif_linear = torch.nn.Linear(self.num_hidden_dims, self.onehot_encoder.dimensionality)
+        self.text_encoder = enunlg.encdec.tgen.TGenEnc(self.text_vocab_size, self.num_hidden_dims)
+        self.classif_linear = torch.nn.Linear(self.num_hidden_dims, self.bitvector_encoder_dims)
         self.classif_sigmoid = torch.nn.Sigmoid()
 
     @property
@@ -83,8 +81,10 @@ class TGenSemClassifier(torch.nn.Module):
             torch.save(self.state_dict(), state_file)
         with open(f"{filepath}/model_config.yaml", 'w') as config_file:
             omegaconf.OmegaConf.save(self.config, config_file)
-        # Warning bc we've written this model to depend on vocabs which we don't necessarily need as init args
-        logger.warning("init args cannot be saved for this model yet")
+        with open(f"{filepath}/_init_args.yaml", 'w') as init_args_file:
+            omegaconf.OmegaConf.save({'text_vocab_size': self.text_vocab_size,
+                                      'bitvector_encoder_dims': self.bitvector_encoder_dims},
+                                     init_args_file)
         if tgz:
             with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
                 out_file.add(filepath, arcname=os.path.basename(filepath))

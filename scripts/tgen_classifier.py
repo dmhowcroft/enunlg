@@ -111,7 +111,7 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
 
 
     logger.info(f"Preparing neural network...")
-    tgen_classifier = binary_mr_classifier.TGenSemClassifier(token_int_mapper, onehot_encoder)
+    tgen_classifier = binary_mr_classifier.TGenSemClassifier(token_int_mapper.size, bitvector_encoder.dimensionality, config.model)
     total_parameters = enunlg.util.count_parameters(tgen_classifier)
     if shortcircuit == 'parameters':
         exit()
