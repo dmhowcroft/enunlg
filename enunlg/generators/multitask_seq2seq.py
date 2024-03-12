@@ -7,7 +7,7 @@ import omegaconf
 import torch
 
 import enunlg.data_management
-import enunlg.encdec
+import enunlg.encdec.multitask_seq2seq
 import enunlg.vocabulary
 
 
