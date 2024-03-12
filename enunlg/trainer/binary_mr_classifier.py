@@ -22,8 +22,8 @@ class BinaryMRClassifierTrainer(BasicTrainer):
     def __init__(self,
                  model: "enunlg.nlu.binary_mr_classifier.TGenSemClassifier",
                  training_config=None,
-                 input_vocab=None,
-                 output_vocab=None):
+                 text_vocab=None,
+                 bitvector_vocab=None):
         if training_config is None:
             # Set defaults
             training_config = omegaconf.DictConfig({"num_epochs": 20,
@@ -36,8 +36,8 @@ class BinaryMRClassifierTrainer(BasicTrainer):
                                                    })
         super().__init__(model, training_config)
         self.loss = torch.nn.MSELoss()
-        self.input_vocab = input_vocab
-        self.output_vocab = output_vocab
+        self.text_vocab = text_vocab
+        self.bitvector_vocab = bitvector_vocab
         self._curr_epoch = -1
         self._early_stopping_scores = [float('-inf')] * 5
         self._early_stopping_scores_changed = -1
@@ -45,12 +45,12 @@ class BinaryMRClassifierTrainer(BasicTrainer):
     def _log_examples_this_interval(self, pairs):
         for i, o in pairs[:10]:
             logger.info("An example!")
-            logger.info(f"Text:   {' '.join([x for x in self.model.text_vocabulary.get_tokens(i.tolist()) if x != '<VOID>'])}")
-            logger.info(f"MR:     {self.model.onehot_encoder.embedding_to_string(o.tolist())}")
+            logger.info(f"Text:   {' '.join([x for x in self.text_vocab.get_tokens(i.tolist()) if x != '<VOID>'])}")
+            logger.info(f"MR:     {self.bitvector_vocab.embedding_to_string(o.tolist())}")
             prediction = self.model.predict(i).squeeze(0).squeeze(0).tolist()
             # output_list = [1.0 if x > 0.95 else 0.0 for x in prediction]
             # logger.info(f"Output: {self.onehot_encoder.embedding_to_string(output_list)}")
-            logger.info(f"Output: {self.model.onehot_encoder.embedding_to_string(list(np.round(prediction)))}")
+            logger.info(f"Output: {self.bitvector_vocab.embedding_to_string(list(np.round(prediction)))}")
             target_bitvector = np.round(o.tolist())
             output_bitvector = np.round(prediction)
             logger.info(f"Target bitvector: {target_bitvector}")
@@ -112,8 +112,8 @@ class BinaryMRClassifierTrainer(BasicTrainer):
             # (See TGen config.yaml line 35 and seq2seq.py line 219 `new_paths.extend(path.expand(self.beam_size, out_probs, st))`)
             cur_outputs = self.model.generate_beam(in_indices, beam_size=10, num_expansions=10)
             # The best output is the first one in the list, and the list contains pairs of length normalised logprobs along with the output indices
-            best_outputs.append(self.output_vocab.pretty_string(cur_outputs[0][1]))
-            ref_outputs.append(self.output_vocab.pretty_string(out_indices.tolist()))
+            best_outputs.append(self.bitvector_vocab.pretty_string(cur_outputs[0][1]))
+            ref_outputs.append(self.bitvector_vocab.pretty_string(out_indices.tolist()))
         return best_outputs, ref_outputs
 
     def early_stopping_criterion_met(self, validation_pairs) -> bool:
