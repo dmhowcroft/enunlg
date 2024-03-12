@@ -18,7 +18,7 @@ nbstripout = "^0.5.0"
 # Live dangerously and let poetry try to find something; this didn't work for me
 #torch = "^1.9.0+cpu"
 # Torch 1.9.1 on CPU-only for Python 3.9 on 64-bit Linux
-torch = {url="https://download.pytorch.org/whl/cpu/torch-1.9.1%2Bcpu-cp39-cp39-linux_x86_64.whl"}
+#torch = {url="https://download.pytorch.org/whl/cpu/torch-1.9.1%2Bcpu-cp39-cp39-linux_x86_64.whl"}
 # Torch 1.9.1 on CPU-only for Python 3.9 on 64-bit Windows
 #torch = {url="https://download.pytorch.org/whl/cpu/torch-1.9.1%2Bcpu-cp39-cp39-win_amd64.whl"}
 # Torch 1.9.1 on CPU-only for Python 3.9 on 64-bit Intel CPU MacOSX 10
@@ -26,7 +26,7 @@ torch = {url="https://download.pytorch.org/whl/cpu/torch-1.9.1%2Bcpu-cp39-cp39-l
 # Torch 1.9.1 on CPU-only for Python 3.9 on 64-bit ARM MacOSX 11
 #torch = {url="https://download.pytorch.org/whl/cpu/torch-1.9.1-cp39-none-macosx_11_0_arm64.whl"}
 # Torch 1.9.1 on CPU-only for Python 3.9 on 64-bit Linux with CUDA 11
-#torch = {url="https://download.pytorch.org/whl/cu111/torch-1.9.0%2Bcu111-cp39-cp39-linux_x86_64.whl"}
+torch = {url="https://download.pytorch.org/whl/cu111/torch-1.9.0%2Bcu111-cp39-cp39-linux_x86_64.whl"}
 hydra-core = "^1.1.1"
 prettytable = "^3.4.1"
 future = "^0.18.2"
