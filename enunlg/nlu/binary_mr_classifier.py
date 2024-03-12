@@ -4,11 +4,12 @@ import logging
 import random
 import time
 
-import enunlg.encdec.tgen
-
+import numpy as np
 import omegaconf
 import torch
 import torch.nn
+
+import enunlg.encdec.tgen
 
 if TYPE_CHECKING:
     import enunlg.embeddings.binary
@@ -61,14 +62,13 @@ class TGenSemClassifier(torch.nn.Module):
         return output
 
     def train_step(self, text_ints, mr_onehot):
-        criterion = torch.nn.CrossEntropyLoss()
+        criterion = torch.nn.MSELoss()
         self.optimizer.zero_grad()
 
-        loss = 0.0
         output = self.forward(text_ints)
         logger.debug(f"{mr_onehot.size()=}")
         logger.debug(f"{output.size()=}")
-        loss += criterion(output.unsqueeze(0), mr_onehot)
+        loss = criterion(output, mr_onehot)
 
         loss.backward()
         self.optimizer.step()
@@ -110,10 +110,14 @@ class TGenSemClassifier(torch.nn.Module):
                         logger.info(f"Text:   {' '.join([x for x in self.text_vocabulary.get_tokens(i.tolist()) if x != '<VOID>'])}")
                         logger.info(f"MR:     {self.onehot_encoder.embedding_to_string(o.tolist())}")
                         prediction = self.predict(i).squeeze(0).squeeze(0).tolist()
-                        output_list = [1.0 if x > 0.95 else 0.0 for x in prediction]
-                        logger.info(f"Output: {self.onehot_encoder.embedding_to_string(output_list)}")
-                        logger.info(f"One-hot target: {o.tolist()}")
-                        logger.info(f"Current output: {prediction}")
+                        # output_list = [1.0 if x > 0.95 else 0.0 for x in prediction]
+                        # logger.info(f"Output: {self.onehot_encoder.embedding_to_string(output_list)}")
+                        logger.info(f"Output: {self.onehot_encoder.embedding_to_string(list(np.round(prediction)))}")
+                        target_bitvector = np.round(o.tolist())
+                        output_bitvector = np.round(prediction)
+                        logger.info(f"Target bitvector: {target_bitvector}")
+                        logger.info(f"Output bitvector: {output_bitvector}")
+                        logger.info(f"Error: {sum(abs(target_bitvector - output_bitvector))}")
             self.scheduler.step()
             logger.info("============================================")
         logger.info("----------")
