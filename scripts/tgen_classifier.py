@@ -17,6 +17,7 @@ import enunlg.embeddings.binary
 import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.trainer.binary_mr_classifier
 import enunlg.util
+import enunlg.vocabulary
 
 logger = logging.getLogger("enunlg-scripts.tgen_classifier")
 
@@ -92,8 +93,8 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     token_int_mapper = prep_tgen_text_integer_reps(corpus)
     # Prepare onehot encoding
     multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in corpus]
-    onehot_encoder = enunlg.embeddings.binary.DialogueActEmbeddings(multi_da_mrs, collapse_values=False)
-    train_mr_onehots = [onehot_encoder.embed_da(mr) for mr in multi_da_mrs]
+    bitvector_encoder = enunlg.embeddings.binary.DialogueActEmbeddings(multi_da_mrs, collapse_values=False)
+    train_mr_onehots = [bitvector_encoder.embed_da(mr) for mr in multi_da_mrs]
     # Prepare text/output integer representation
     train_tokens = [text.strip().split() for _, text in corpus]
     text_lengths = [len(text) for text in train_tokens]
@@ -102,7 +103,7 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     logger.info("MRs as one-hot vectors:")
     enunlg.util.log_sequence(train_mr_onehots[:10], indent="... ")
     logger.info("and converting back from one-hot vectors:")
-    enunlg.util.log_sequence([onehot_encoder.embedding_to_string(onehot_vector) for onehot_vector in train_mr_onehots[:10]], indent="... ")
+    enunlg.util.log_sequence([bitvector_encoder.embedding_to_string(onehot_vector) for onehot_vector in train_mr_onehots[:10]], indent="... ")
     logger.info(f"Text vocabulary has {token_int_mapper.max_index + 1} unique tokens")
     logger.info("The reference texts for these MRs:")
     enunlg.util.log_sequence(train_tokens[:10], indent="... ")
@@ -116,7 +117,7 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     if shortcircuit == 'parameters':
         exit()
 
-    trainer = enunlg.trainer.binary_mr_classifier.BinaryMRClassifierTrainer(tgen_classifier, config.train)
+    trainer = enunlg.trainer.binary_mr_classifier.BinaryMRClassifierTrainer(tgen_classifier, config.train, token_int_mapper, bitvector_encoder)
 
     training_pairs = [(torch.tensor(enc_emb, dtype=torch.long),
                        torch.tensor(dec_emb, dtype=torch.float))
