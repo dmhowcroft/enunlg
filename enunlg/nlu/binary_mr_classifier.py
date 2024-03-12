@@ -45,11 +45,6 @@ class TGenSemClassifier(torch.nn.Module):
         self.classif_linear = torch.nn.Linear(self.num_hidden_dims, self.onehot_encoder.dimensionality)
         self.classif_sigmoid = torch.nn.Sigmoid()
 
-        # Initialise optimisers (same as in TGenEncDec model)
-        self.learning_rate = 0.0005
-        self.optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
-        self.scheduler = torch.optim.lr_scheduler.ExponentialLR(self.optimizer, gamma=0.5)
-
     @property
     def num_hidden_dims(self):
         return self.config.text_encoder.num_hidden_dims
@@ -73,47 +68,9 @@ class TGenSemClassifier(torch.nn.Module):
         optimizer.step()
         return loss.item()
 
-    def train_iterations(self, pairs, epochs: int, record_interval: int = 1000) -> List[float]:
-        """
-        Run `epochs` training epochs over all training pairs, shuffling pairs in place each epoch.
-
-        :param pairs: input and output indices for embeddings
-        :param epochs: number of training epochs to run
-        :param record_interval: how frequently to print and record training loss
-        :return: list of average loss for each `record_interval` for each epoch
-        """
-        # In TGen this would begin with a call to self._init_training()
-
-        start_time = time.time()
-        prev_chunk_start_time = start_time
-        loss_this_interval = 0
-        loss_to_plot = []
-
-        for epoch in range(epochs):
-            logger.info(f"Beginning epoch {epoch}...")
-            logger.info(f"Learning rate is now {self.learning_rate}")
-            random.shuffle(pairs)
-            for index, (text_ints, mr_onehot) in enumerate(pairs, start=1):
-                loss = self.train_step(text_ints, mr_onehot)
-                loss_this_interval += loss
-                if index % record_interval == 0:
-                    avg_loss = loss_this_interval / record_interval
-                    loss_this_interval = 0
-                    logger.info("------------------------------------")
-                    logger.info(f"{index} iteration mean loss = {avg_loss}")
-                    logger.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
-                    prev_chunk_start_time = time.time()
-                    loss_to_plot.append(avg_loss)
-            self.scheduler.step()
-            logger.info("============================================")
-        logger.info("----------")
-        logger.info(f"Training took {(time.time() - start_time) / 60} minutes")
-        return loss_to_plot
-
     def predict(self, text_ints):
         with torch.no_grad():
             return self.forward(text_ints)
-
 
     def _save_classname_to_dir(self, directory_path):
         with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
