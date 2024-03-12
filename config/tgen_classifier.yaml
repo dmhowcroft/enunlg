@@ -19,12 +19,14 @@ pytorch:
 
 model:
   name: tgen_classifier
-  max_mr_length: 30
   text_encoder:
     embeddings:
-      mode: random # could also be one-hot, word2vec, glove, zero, etc
-      dimensions: 50
+      type: torch # could also be one-hot, word2vec, glove, zero, etc
+      embedding_dim: 50
       backprop: True
+      padding_idx: 0
+      start_idx: 1
+      stop_idx: 2
     cell: lstm
     num_hidden_dims: 128
 
