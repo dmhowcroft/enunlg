@@ -14,6 +14,7 @@ import enunlg
 import enunlg.data_management.e2e_challenge as e2e
 import enunlg.embeddings.binary
 import enunlg.meaning_representation.dialogue_acts as das
+import enunlg.trainer.binary_mr_classifier
 import enunlg.util
 
 logger = logging.getLogger("enunlg-scripts.tgen_classifier")
@@ -110,15 +111,22 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
 
     logger.info(f"Preparing neural network...")
     tgen_classifier = binary_mr_classifier.TGenSemClassifier(token_int_mapper, onehot_encoder)
+    total_parameters = enunlg.util.count_parameters(tgen_classifier)
+    if shortcircuit == 'parameters':
+        exit()
+
+    trainer = enunlg.trainer.binary_mr_classifier.BinaryMRClassifierTrainer(tgen_classifier, config.train)
 
     training_pairs = [(torch.tensor(enc_emb, dtype=torch.long),
                        torch.tensor(dec_emb, dtype=torch.float))
                       for enc_emb, dec_emb in zip(train_text_ints, train_mr_onehots)]
 
-    logger.info(f"Running {config.train.num_epochs} epochs of {len(training_pairs)} iterations (looking at each training pair once per epoch)")
-    losses_for_plotting = tgen_classifier.train_iterations(training_pairs, config.train.num_epochs)
+    nine_to_one_split_idx = int(len(training_pairs) * 0.9)
 
-    torch.save(tgen_classifier.state_dict(), "trained-tgen_classifier-model.pt")
+    logger.info(f"Running {config.train.num_epochs} epochs of {nine_to_one_split_idx} iterations (looking at each training pair once per epoch, except those withheld for validation)")
+    losses_for_plotting = trainer.train_iterations(training_pairs[:nine_to_one_split_idx], training_pairs[nine_to_one_split_idx:])
+
+    tgen_classifier.save(os.path.join(config.output_dir, f'trained_{tgen_classifier.__class__.__name__}.nlg'))
 
 
 if __name__ == "__main__":

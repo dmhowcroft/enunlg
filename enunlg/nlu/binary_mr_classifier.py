@@ -1,10 +1,10 @@
 from typing import List, TYPE_CHECKING
 
 import logging
+import os
 import random
 import time
 
-import numpy as np
 import omegaconf
 import torch
 import torch.nn
@@ -61,9 +61,8 @@ class TGenSemClassifier(torch.nn.Module):
         output = self.classif_sigmoid(output)
         return output
 
-    def train_step(self, text_ints, mr_onehot):
-        criterion = torch.nn.MSELoss()
-        self.optimizer.zero_grad()
+    def train_step(self, text_ints, mr_onehot, optimizer, criterion):
+        optimizer.zero_grad()
 
         output = self.forward(text_ints)
         logger.debug(f"{mr_onehot.size()=}")
@@ -71,7 +70,7 @@ class TGenSemClassifier(torch.nn.Module):
         loss = criterion(output, mr_onehot)
 
         loss.backward()
-        self.optimizer.step()
+        optimizer.step()
         return loss.item()
 
     def train_iterations(self, pairs, epochs: int, record_interval: int = 1000) -> List[float]:
@@ -105,19 +104,6 @@ class TGenSemClassifier(torch.nn.Module):
                     logger.info(f"Time this chunk: {time.time() - prev_chunk_start_time}")
                     prev_chunk_start_time = time.time()
                     loss_to_plot.append(avg_loss)
-                    for i, o in pairs[:10]:
-                        logger.info("An example!")
-                        logger.info(f"Text:   {' '.join([x for x in self.text_vocabulary.get_tokens(i.tolist()) if x != '<VOID>'])}")
-                        logger.info(f"MR:     {self.onehot_encoder.embedding_to_string(o.tolist())}")
-                        prediction = self.predict(i).squeeze(0).squeeze(0).tolist()
-                        # output_list = [1.0 if x > 0.95 else 0.0 for x in prediction]
-                        # logger.info(f"Output: {self.onehot_encoder.embedding_to_string(output_list)}")
-                        logger.info(f"Output: {self.onehot_encoder.embedding_to_string(list(np.round(prediction)))}")
-                        target_bitvector = np.round(o.tolist())
-                        output_bitvector = np.round(prediction)
-                        logger.info(f"Target bitvector: {target_bitvector}")
-                        logger.info(f"Output bitvector: {output_bitvector}")
-                        logger.info(f"Error: {sum(abs(target_bitvector - output_bitvector))}")
             self.scheduler.step()
             logger.info("============================================")
         logger.info("----------")
@@ -127,3 +113,21 @@ class TGenSemClassifier(torch.nn.Module):
     def predict(self, text_ints):
         with torch.no_grad():
             return self.forward(text_ints)
+
+
+    def _save_classname_to_dir(self, directory_path):
+        with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
+            class_file.write(self.__class__.__name__)
+
+    def save(self, filepath, tgz=True):
+        os.mkdir(filepath)
+        self._save_classname_to_dir(filepath)
+        with open(f"{filepath}/_state_dict.pt", 'wb') as state_file:
+            torch.save(self.state_dict(), state_file)
+        with open(f"{filepath}/model_config.yaml", 'w') as config_file:
+            omegaconf.OmegaConf.save(self.config, config_file)
+        # Warning bc we've written this model to depend on vocabs which we don't necessarily need as init args
+        logger.warning("init args cannot be saved for this model yet")
+        if tgz:
+            with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
+                out_file.add(filepath, arcname=os.path.basename(filepath))
