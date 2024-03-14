@@ -1,3 +1,6 @@
+defaults:
+  - _self_
+
 random_seed: 42
 pytorch:
   device: cpu

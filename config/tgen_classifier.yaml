@@ -34,7 +34,7 @@ mode: train
 
 train:
   num_epochs: 20
-  record_interval: 1000
+  record_interval: 4120
   shuffle: True
   batch_size: 1 # TGen used 20
   optimizer: adam
