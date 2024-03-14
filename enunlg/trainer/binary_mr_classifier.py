@@ -35,12 +35,12 @@ class BinaryMRClassifierTrainer(BasicTrainer):
                                                     "learning_rate_decay": 0.5  # TGen used 0.0
                                                    })
         super().__init__(model, training_config)
-        self.loss = torch.nn.MSELoss()
+        self.loss = torch.nn.BCELoss()
         self.text_vocab = text_vocab
         self.bitvector_vocab = bitvector_vocab
         self._curr_epoch = -1
-        self._early_stopping_scores = [float('-inf')] * 5
-        self._early_stopping_scores_changed = -1
+        self._early_stopping_scores = [float('inf')] * 5
+        self._early_stopping_scores_changed = 0
 
     def _log_examples_this_interval(self, pairs):
         for i, o in pairs[:10]:
@@ -72,7 +72,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
         loss_this_interval = 0
         loss_to_plot = []
 
-        for epoch in range(self.epochs):
+        for epoch in range(1, self.epochs + 1):
             logger.info(f"Beginning epoch {epoch}...")
             self._curr_epoch = epoch
             self._log_epoch_begin_stats()
@@ -126,7 +126,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
         logger.info(f"Current error count: {error}")
         if error < self._early_stopping_scores[-1]:
             self._early_stopping_scores.append(error)
-            self._early_stopping_scores = sorted(self._early_stopping_scores)[:-1]
+            self._early_stopping_scores = sorted(self._early_stopping_scores, reverse=True)[1:]
             self._early_stopping_scores_changed = self._curr_epoch
         # If error has changed recently, keep training
         # NOTE: right now we're using the length of _early_stopping_scores to effectively ensure a minimum of 5 epochs
