@@ -36,7 +36,7 @@ function fetch_dataset {
     e2e-enriched)
       if [ ! -d EnrichedE2E ]
       then
-        git clone git@github.com:ThiagoCF05/EnrichedE2E.git
+        git clone https://github.com/ThiagoCF05/EnrichedE2E.git
       fi;;
     neural-methodius)
       git clone git@github.com:aleksadre/methodiusNeuralINLG2021 ;;
@@ -45,7 +45,7 @@ function fetch_dataset {
     webnlg-enriched)
       if [ ! -d webnlg ]
       then
-        git clone git@github.com:ThiagoCF05/webnlg.git
+        git clone https://github.com/ThiagoCF05/webnlg.git
       fi;;
   esac
 }
