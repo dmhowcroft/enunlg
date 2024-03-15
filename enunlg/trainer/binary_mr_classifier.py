@@ -18,6 +18,10 @@ if TYPE_CHECKING:
     import enunlg.nlu.binary_mr_classifier
 
 
+def hamming_error(target_bitvector, bitvector) -> float:
+    return sum(abs(target_bitvector - bitvector))/sum(target_bitvector)
+
+
 class BinaryMRClassifierTrainer(BasicTrainer):
     def __init__(self,
                  model: "enunlg.nlu.binary_mr_classifier.TGenSemClassifier",
@@ -55,7 +59,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
             output_bitvector = np.round(prediction)
             logger.info(f"Target bitvector: {target_bitvector}")
             logger.info(f"Output bitvector: {output_bitvector}")
-            logger.info(f"Error: {sum(abs(target_bitvector - output_bitvector))}")
+            logger.info(f"Error: {hamming_error(target_bitvector, output_bitvector)}")
 
     def train_iterations(self,
                          pairs: List[Tuple[torch.Tensor, torch.Tensor]],
@@ -122,7 +126,8 @@ class BinaryMRClassifierTrainer(BasicTrainer):
             prediction = self.model.predict(i).squeeze(0).squeeze(0).tolist()
             target_bitvector = np.round(o.tolist())
             output_bitvector = np.round(prediction)
-            error += sum(abs(target_bitvector - output_bitvector))
+            error += hamming_error(target_bitvector, output_bitvector)
+        error = error / len(validation_pairs)
         logger.info(f"Current error count: {error}")
         if error < self._early_stopping_scores[-1]:
             self._early_stopping_scores.append(error)
