@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 SUPPORTED_DATASETS = {"e2e", "e2e-cleaned", "enriched-e2e", "enriched-webnlg", "sfx-restaurant"}
 
 
-def load_data_from_config(data_config: "omegaconf.DictConfig"):
+def load_data_from_config(data_config: "omegaconf.DictConfig", splits):
     """Selects the right function to use to load the desired data and return a corpus.
 
     In an experiment's YAML file, the data config is specified under the key `data`.
@@ -34,11 +34,11 @@ def load_data_from_config(data_config: "omegaconf.DictConfig"):
     if data_config.corpus.name not in SUPPORTED_DATASETS:
         raise ValueError(f"Unsupported dataset: {data_config.corpus.name}")
     if data_config.corpus.name == 'e2e':
-        logger.info("Loading E2E Challenge Data...")
-        return enunlg.data_management.e2e_challenge.load_e2e(data_config.corpus.splits)
+        logger.info(f"Loading E2E Challenge Data ({splits})...")
+        return enunlg.data_management.e2e_challenge.load_e2e(data_config.corpus, splits)
     elif data_config.corpus.name == 'e2e-cleaned':
-        logger.info("Loading the Cleaned E2E Data...")
-        return enunlg.data_management.e2e_challenge.load_e2e(data_config.corpus.splits, original=False)
+        logger.info(f"Loading the Cleaned E2E Data ({splits})...")
+        return enunlg.data_management.e2e_challenge.load_e2e(data_config.corpus, splits)
     elif data_config.corpus.name == 'enriched-e2e':
         logger.info("Loading Enriched E2E Challenge Data...")
         return enunlg.data_management.enriched_e2e.load_enriched_e2e(data_config.corpus.splits)

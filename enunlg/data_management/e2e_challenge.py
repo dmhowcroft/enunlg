@@ -119,35 +119,19 @@ def load_e2e_csv(filepath: str) -> List[Tuple[str, str]]:
         return E2ECorpus([E2EPair(parse_mr(pair[0]), pair[1]) for pair in csv_reader])
 
 
-def load_e2e(splits: Optional[Iterable[str]] = None,
-             original: bool = True,
-             e2e_config: Optional[omegaconf.DictConfig] = None) -> E2ECorpus:
+def load_e2e(corpus_config: omegaconf.DictConfig,
+             splits: Optional[Iterable[str]]) -> E2ECorpus:
     """
-
-    :param splits: which splits to load
-    :param original: True to load the original e2e corpus, false to load the cleaned version
-    :param e2e_config: a box.Box or omegaconf.DictConfig like object containing the basic
-                       information about the e2e corpus to be used
     :return: the corpus of MR-text pairs with metadata
     """
-    if e2e_config is None:
-        e2e_config = E2E_CONFIG
-    if original:
-        corpus_name = "E2E Challenge Corpus"
-        default_splits = E2E_SPLITS
-        directory = e2e_config.E2E_DIR
-    else:
-        corpus_name = "E2E Cleaned"
-        default_splits = E2E_CLEANED_SPLITS
-        directory = e2e_config.E2E_CLEANED_DIR
-    if splits is None:
-        splits = default_splits
-    elif not set(splits).issubset(default_splits):
+    default_splits = set(corpus_config.splits.keys())
+    if not set(splits).issubset(default_splits):
         raise ValueError(f"`splits` can only contain a subset of {default_splits}. Found {splits}.")
     corpus = E2ECorpus([])
     for split in splits:
-        corpus.extend(load_e2e_csv(os.path.join(directory, f"{split}.csv")))
-    corpus.metadata = {'name': corpus_name,
+        for csv_file in corpus_config.splits[split]:
+            corpus.extend(load_e2e_csv(os.path.join(os.path.dirname(__file__), corpus_config.load_dir, f"{csv_file}")))
+    corpus.metadata = {'name': corpus_config.display_name,
                        'splits': splits,
-                       'directory': directory}
+                       'directory': corpus_config.load_dir}
     return corpus

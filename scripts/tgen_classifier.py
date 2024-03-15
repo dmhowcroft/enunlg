@@ -82,7 +82,7 @@ def tgen_classifier_main(config: omegaconf.DictConfig) -> None:
 def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     enunlg.util.set_random_seeds(config.random_seed)
 
-    corpus = load_data_from_config(config.data)
+    corpus = load_data_from_config(config.data, ['train'])
     corpus.print_summary_stats()
     print("____________")
 
