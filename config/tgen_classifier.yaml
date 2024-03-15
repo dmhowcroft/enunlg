@@ -1,5 +1,5 @@
 defaults:
-  - data/corpus: e2e-cleaned_train
+  - data/corpus: e2e-cleaned
   - _self_
 
 random_seed: 42
@@ -40,3 +40,5 @@ train:
   optimizer: adam
   learning_rate: 0.0005
   learning_rate_decay: 0.5 # TGen used 0.0
+  train_splits: train
+  dev_splits: dev

@@ -85,8 +85,12 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     corpus = load_data_from_config(config.data, ['train'])
     corpus.print_summary_stats()
     print("____________")
+    validation_corpus = load_data_from_config(config.data, ['dev'])
+    validation_corpus.print_summary_stats()
+    print("____________")
 
     corpus = preprocess(corpus, config.preprocessing)
+    validation_corpus = preprocess(validation_corpus, config.preprocessing)
 
     logger.info("Preparing training data for PyTorch...")
     # Prepare mr/input integer representation
@@ -94,16 +98,16 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     # Prepare onehot encoding
     multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in corpus]
     bitvector_encoder = enunlg.embeddings.binary.DialogueActEmbeddings(multi_da_mrs, collapse_values=False)
-    train_mr_onehots = [bitvector_encoder.embed_da(mr) for mr in multi_da_mrs]
+    train_mr_bitvectors = [bitvector_encoder.embed_da(mr) for mr in multi_da_mrs]
     # Prepare text/output integer representation
     train_tokens = [text.strip().split() for _, text in corpus]
     text_lengths = [len(text) for text in train_tokens]
     train_text_ints = [token_int_mapper.get_ints_with_left_padding(text.split()) for _, text in corpus]
     logger.info(f"Text lengths: {min(text_lengths)} min, {max(text_lengths)} max, {sum(text_lengths)/len(text_lengths)} avg")
     logger.info("MRs as one-hot vectors:")
-    enunlg.util.log_sequence(train_mr_onehots[:10], indent="... ")
+    enunlg.util.log_sequence(train_mr_bitvectors[:10], indent="... ")
     logger.info("and converting back from one-hot vectors:")
-    enunlg.util.log_sequence([bitvector_encoder.embedding_to_string(onehot_vector) for onehot_vector in train_mr_onehots[:10]], indent="... ")
+    enunlg.util.log_sequence([bitvector_encoder.embedding_to_string(onehot_vector) for onehot_vector in train_mr_bitvectors[:10]], indent="... ")
     logger.info(f"Text vocabulary has {token_int_mapper.max_index + 1} unique tokens")
     logger.info("The reference texts for these MRs:")
     enunlg.util.log_sequence(train_tokens[:10], indent="... ")
@@ -121,12 +125,15 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
 
     training_pairs = [(torch.tensor(enc_emb, dtype=torch.long),
                        torch.tensor(dec_emb, dtype=torch.float))
-                      for enc_emb, dec_emb in zip(train_text_ints, train_mr_onehots)]
+                      for enc_emb, dec_emb in zip(train_text_ints, train_mr_bitvectors)]
+    dev_text_ints = [token_int_mapper.get_ints_with_left_padding(text.split()) for _, text in corpus]
+    dev_mr_bitvectors = [bitvector_encoder.embed_da(mr) for mr in multi_da_mrs]
+    validation_pairs = [(torch.tensor(enc_emb, dtype=torch.long),
+                        torch.tensor(dec_emb, dtype=torch.float))
+                        for enc_emb, dec_emb in zip(dev_text_ints, dev_mr_bitvectors)]
 
-    nine_to_one_split_idx = int(len(training_pairs) * 0.9)
-
-    logger.info(f"Running {config.train.num_epochs} epochs of {nine_to_one_split_idx} iterations (looking at each training pair once per epoch, except those withheld for validation)")
-    losses_for_plotting = trainer.train_iterations(training_pairs[:nine_to_one_split_idx], training_pairs[nine_to_one_split_idx:])
+    logger.info(f"Running {config.train.num_epochs} epochs of {len(training_pairs)} iterations (with {len(validation_pairs)} validation pairs")
+    losses_for_plotting = trainer.train_iterations(training_pairs, validation_pairs)
 
     tgen_classifier.save(os.path.join(config.output_dir, f'trained_{tgen_classifier.__class__.__name__}.nlg'))
 
