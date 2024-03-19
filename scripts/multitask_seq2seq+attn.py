@@ -50,8 +50,11 @@ def translate_e2e_to_rdf(corpus) -> None:
 def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
 
-    corpus = load_data_from_config(config.data)
+    corpus = load_data_from_config(config.data, config.train.train_splits)
     corpus.print_summary_stats()
+    print("____________")
+    validation_corpus = load_data_from_config(config.data, config.train.dev_splits)
+    validation_corpus.print_summary_stats()
     print("____________")
 
     # Drop entries that are missing data
