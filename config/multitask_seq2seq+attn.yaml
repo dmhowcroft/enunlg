@@ -87,6 +87,8 @@ train:
   optimizer: adam
   learning_rate: 0.001
   learning_rate_decay: 0.5
+  train_splits: [train]
+  dev_splits: [dev]
 
 test:
   generator_file: trained_MultitaskSeq2SeqGenerator.pt.tgz

@@ -40,5 +40,5 @@ train:
   optimizer: adam
   learning_rate: 0.0005
   learning_rate_decay: 0.5 # TGen used 0.0
-  train_splits: train
-  dev_splits: dev
+  train_splits: [train]
+  dev_splits: [dev]
