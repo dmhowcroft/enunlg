@@ -20,6 +20,7 @@ class DialogueActEmbeddings(object):
         self._slot_value_pairs: Set[Tuple[str, Optional[str]]] = set()
         self.slot_value_pairs: MutableMapping[Tuple[str, Optional[str]], int] = bidict.OrderedBidict()
         self._initialise_embeddings(multi_da_seq)
+        self._unk_sv_pair = 0
 
     @property
     def collapse_values(self):
@@ -70,6 +71,7 @@ class DialogueActEmbeddings(object):
             self.acts[act] = index
         for index, slot_value in enumerate(self._slot_value_pairs):
             self.slot_value_pairs[slot_value] = index
+        self._unk_sv_pair = index + 1
 
     def embed_da(self, multi_da: "dialogue_acts.MultivaluedDA") -> List[float]:
         act_embedding = [0.0 for _ in range(len(self.acts))]
@@ -78,7 +80,7 @@ class DialogueActEmbeddings(object):
         slot_value_embedding = [0.0 for _ in range(len(self.slot_value_pairs))]
         slot_values = self._slot_value_decoder(multi_da.slot_values)
         for slot_value in slot_values:
-            slot_value_embedding[self.slot_value_pairs[slot_value]] = 1.0
+            slot_value_embedding[self.slot_value_pairs.get(slot_value, self._unk_sv_pair)] = 1.0
         act_embedding.extend(slot_value_embedding)
         return act_embedding
 
