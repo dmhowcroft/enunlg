@@ -42,3 +42,6 @@ train:
   learning_rate_decay: 0.5 # TGen used 0.0
   train_splits: [train]
   dev_splits: [dev]
+
+test:
+  test_splits: [test]

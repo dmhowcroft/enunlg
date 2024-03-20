@@ -1,5 +1,5 @@
 defaults:
-  - data/corpus: enriched-e2e_train
+  - data/corpus: enriched-e2e
   - _self_
 random_seed: 42
 pytorch:
@@ -92,3 +92,4 @@ train:
 
 test:
   generator_file: trained_MultitaskSeq2SeqGenerator.pt.tgz
+  test_splits: [test]
