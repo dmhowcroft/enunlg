@@ -5,6 +5,7 @@ import random
 import time
 
 from sacrebleu import metrics as sm
+from tqdm import tqdm
 
 import omegaconf
 import torch
@@ -78,7 +79,7 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
             random.shuffle(pairs)
             stage = stages[epoch % 4]
             stage = 'all_balanced'
-            for index, (enc_emb, dec_emb) in enumerate(pairs, start=1):
+            for index, (enc_emb, dec_emb) in tqdm(enumerate(pairs, start=1)):
                 loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss)
                 self.log_training_loss(float(loss), epoch * len(pairs) + index)
                 self.log_parameter_gradients(epoch * len(pairs) + index)
