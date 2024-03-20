@@ -8,6 +8,7 @@ import os
 
 import omegaconf
 import regex
+import xsdata.formats.dataclass.parsers.handlers.lxml
 import xsdata.formats.dataclass.parsers as xsparsers
 
 from enunlg.formats.xml.enriched_e2e import EnrichedE2EEntries, EnrichedE2EEntry
@@ -77,7 +78,8 @@ class EnrichedE2ECorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
                 raise TypeError(f"Expected filename_or_list to be None, str, or list, not {type(filename_or_list)}")
 
     def load_file(self, filename):
-        entries_object = xsparsers.XmlParser().parse(filename, EnrichedE2EEntries)
+        entries_object = xsparsers.XmlParser(handler=xsdata.formats.dataclass.parsers.handlers.lxml.LxmlEventHandler).parse(filename, EnrichedE2EEntries)
+        # entries_object = xsparsers.XmlParser().parse(filename, EnrichedE2EEntries)
         self.extend(entries_object.entries)
 
 
@@ -195,31 +197,26 @@ def extract_raw_output(entry: EnrichedE2EEntry) -> List[str]:
     return [target.text for target in entry.targets]
 
 
-def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_config: Optional[omegaconf.DictConfig] = None) -> EnrichedE2ECorpus:
+def load_enriched_e2e(enriched_e2e_config: omegaconf.DictConfig, splits: Optional[Iterable[str]] = None) -> EnrichedE2ECorpus:
     """
-    :param splits: which splits to load
     :param enriched_e2e_config: a SlotValueMR or omegaconf.DictConfig like object containing the basic
                                 information about the e2e corpus to be used
+    :param splits: which splits to load
     :return: the corpus of MR-text pairs with metadata
     """
-    if enriched_e2e_config is None:
-        enriched_e2e_config = ENRICHED_E2E_CONFIG
-    corpus_name = "Enriched E2E Challenge Corpus"
-    default_splits = E2E_SPLIT_DIRS
-    data_directory = enriched_e2e_config.ENRICHED_E2E_DIR
-    if splits is None:
-        splits = default_splits
-    elif not set(splits).issubset(default_splits):
+    default_splits = set(enriched_e2e_config.splits.keys())
+    if not set(splits).issubset(default_splits):
         raise ValueError(f"`splits` can only contain a subset of {default_splits}. Found {splits}.")
     fns = []
     for split in splits:
         logger.info(split)
-        fns.extend([os.path.join(data_directory, split, fn) for fn in os.listdir(os.path.join(data_directory, split))])
+        fns.extend([os.path.join(os.path.dirname(__file__), enriched_e2e_config.load_dir, split, fn)
+                    for fn in os.listdir(os.path.join(os.path.dirname(__file__), enriched_e2e_config.load_dir, split))])
 
     corpus: EnrichedE2ECorpusRaw = EnrichedE2ECorpusRaw(filename_or_list=fns)
-    corpus.metadata = {'name': corpus_name,
+    corpus.metadata = {'name': enriched_e2e_config.display_name,
                        'splits': splits,
-                       'directory': data_directory,
+                       'directory': enriched_e2e_config.load_dir,
                        'raw': True}
     logger.info(len(corpus))
 
@@ -238,9 +235,9 @@ def load_enriched_e2e(splits: Optional[Iterable[str]] = None, enriched_e2e_confi
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
     corpus: EnrichedE2ECorpus = EnrichedE2ECorpus(enriched_e2e_factory(corpus))
-    corpus.metadata = {'name': corpus_name,
+    corpus.metadata = {'name': enriched_e2e_config.display_name,
                        'splits': splits,
-                       'directory': data_directory,
+                       'directory': enriched_e2e_config.load_dir,
                        'raw': False}
     logger.info(f"Corpus contains {len(corpus)} entries.")
     return corpus

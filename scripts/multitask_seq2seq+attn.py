@@ -60,7 +60,7 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     # Drop entries that are missing data
     validate_enriched_e2e(corpus)
 
-    if config.data.corpus.name == "enriched-e2e" and config.data.input_mode == "rdf":
+    if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
         translate_e2e_to_rdf(corpus)
 
     if config.data.input_mode == "rdf":
@@ -102,7 +102,7 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
 
-    corpus = load_data_from_config(config.data)
+    corpus = load_data_from_config(config.data, config.test.test_splits)
     corpus.print_summary_stats()
     print("____________")
 
