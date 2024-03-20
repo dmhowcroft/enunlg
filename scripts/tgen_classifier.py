@@ -57,7 +57,6 @@ def preprocess(corpus, preprocessing_config):
     return corpus
     
 
-
 @hydra.main(version_base=None, config_path='../config', config_name='tgen_classifier')
 def tgen_classifier_main(config: omegaconf.DictConfig) -> None:
     # Add Hydra-managed output dir to the config dictionary
@@ -73,8 +72,7 @@ def tgen_classifier_main(config: omegaconf.DictConfig) -> None:
     elif config.mode == "parameters":
         train_tgen_classifier(config, shortcircuit="parameters")
     elif config.mode == "test":
-        # test_tgen_classifier(config)
-        pass
+        test_tgen_classifier(config)
     else:
         raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
 
@@ -114,7 +112,6 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     logger.info("The same texts as lists of vocab indices")
     enunlg.util.log_sequence(train_text_ints[:10], indent="... ")
 
-
     logger.info(f"Preparing neural network...")
     tgen_classifier = binary_mr_classifier.TGenSemClassifier(token_int_mapper.size, bitvector_encoder.dimensionality, config.model)
     total_parameters = enunlg.util.count_parameters(tgen_classifier)
@@ -133,10 +130,38 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
                         torch.tensor(dec_emb, dtype=torch.float))
                         for enc_emb, dec_emb in zip(dev_text_ints, dev_mr_bitvectors)]
 
+    training_pairs = training_pairs[:100]
+    validation_pairs = validation_pairs[:20]
+
+
     logger.info(f"Running {config.train.num_epochs} epochs of {len(training_pairs)} iterations (with {len(validation_pairs)} validation pairs")
     losses_for_plotting = trainer.train_iterations(training_pairs, validation_pairs)
 
     tgen_classifier.save(os.path.join(config.output_dir, f'trained_{tgen_classifier.__class__.__name__}.nlg'))
+    token_int_mapper.save(os.path.join(config.output_dir, f'{token_int_mapper.__class__.__name__}.nlg'))
+    bitvector_encoder.save(os.path.join(config.output_dir, f'{bitvector_encoder.__class__.__name__}.nlg'))
+
+
+def test_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
+    enunlg.util.set_random_seeds(config.random_seed)
+
+    corpus = load_data_from_config(config.data, config.test.test_splits)
+    corpus.print_summary_stats()
+    print("____________")
+
+    corpus = preprocess(corpus, config.preprocessing)
+
+    logger.info(f"Loading neural network...")
+    tgen_classifier = binary_mr_classifier.TGenSemClassifier.load(config.test.classifier_file)
+    total_parameters = enunlg.util.count_parameters(tgen_classifier)
+    if shortcircuit == 'parameters':
+        exit()
+
+    # test_pairs = [(torch.tensor(enc_emb, dtype=torch.long),
+    #                    torch.tensor(dec_emb, dtype=torch.float))
+    #                   for enc_emb, dec_emb in zip(train_text_ints, train_mr_bitvectors)]
+    #
+
 
 
 if __name__ == "__main__":
