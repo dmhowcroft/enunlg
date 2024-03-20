@@ -33,7 +33,7 @@ prettytable = "^3.4.1"
 future = "^0.18.2"
 sacrebleu = "^2.3.1"
 lxml = "^4.9.2"
-xsdata = "^23.8"
+xsdata = {extras = ["cli", "lxml"], version = "^24.3.1"}
 tensorboard = "^2.15.1"
 setuptools = "59.5.0"
 stanza = "^1.7.0"
