@@ -38,16 +38,16 @@ class PipelineSeq2SeqGenerator(object):
         for layer in self.layers:
             self.vocabularies[layer] = enunlg.vocabulary.TokenVocabulary(corpus.items_by_layer(layer))
 
-    def initialize_embeddings(self, corpus):
+    def initialize_embeddings(self, corpus: TextPipelineCorpus):
         for layer in self.layers:
             self.input_embeddings[layer] = [torch.tensor(self.vocabularies[layer].get_ints_with_left_padding(item, self.max_length_any_layer), dtype=torch.long) for item in corpus.items_by_layer(layer)]
             self.output_embeddings[layer] = [torch.tensor(self.vocabularies[layer].get_ints(item), dtype=torch.long) for item in corpus.items_by_layer(layer)]
 
-    def initialize_seq2seq_modules(self, corpus):
+    def initialize_seq2seq_modules(self, corpus: TextPipelineCorpus):
         # Define a default model config; we'll improve this later
         # TODO make the model config different for each pair of IO-layers
         model_config = omegaconf.DictConfig({"name": "seq2seq+attn",
-                        "max_input_length": max_length_any_input_layer(corpus),
+                        "max_input_length": corpus.max_layer_length,
                         "encoder": {"embeddings": {"type": "torch",
                                                    "embedding_dim": 50,
                                                    "backprop": True},
