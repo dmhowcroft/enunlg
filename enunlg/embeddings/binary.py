@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List, MutableMapping, Optional, Sequence, Set, Text, Tuple, Union, TYPE_CHECKING
+from typing import Iterable, List, MutableMapping, Optional, Set, Text, Tuple, TYPE_CHECKING
 
 import logging
 import os
@@ -53,7 +53,7 @@ class DialogueActEmbeddings(object):
         retval: List[Tuple[str, Optional[str]]] = []
         for slot in slot_value_box:
             if isinstance(slot_value_box[slot], Text):
-                raise ValueError(f"slot_value_decoder only works on iterables containing strings, not bare strings")
+                raise ValueError("slot_value_decoder only works on iterables containing strings, not bare strings")
             if not isinstance(slot_value_box[slot], Iterable):
                 raise ValueError(f"Expected list but got {slot_value_box[slot]=}")
             for index, value in enumerate(slot_value_box[slot], start=1):

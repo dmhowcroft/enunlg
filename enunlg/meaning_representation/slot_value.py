@@ -2,6 +2,8 @@ import logging
 
 import box
 
+logger = logging.getLogger(__name__)
+
 
 class SlotValueMR(box.Box):
     def __init__(self, *args, **kwargs):
@@ -17,7 +19,7 @@ class SlotValueMR(box.Box):
 
 class MultivaluedSlotValueMR(box.Box):
     def __init__(self, *args, **kwargs):
-        super(SlotValueMR, self).__init__(*args, default_box=True, default_box_attr=list, **kwargs)
+        super().__init__(*args, default_box=True, default_box_attr=list, **kwargs)
 
     def __repr__(self):
         slot_value_pairs = ", ".join([f"{key}='{self[key]}'" for key in self.keys()])

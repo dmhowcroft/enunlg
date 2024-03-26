@@ -4,6 +4,8 @@ import random
 
 import torch
 
+logger = logging.getLogger(__name__)
+
 RegexRule = collections.namedtuple('RegexRule', ("match_expression", "replacement_expression"))
 
 
@@ -16,7 +18,8 @@ def count_parameters(model, log_table=True, print_table=False):
     table = PrettyTable(["Modules", "Parameters"])
     total_params = 0
     for name, parameter in model.named_parameters():
-        if not parameter.requires_grad: continue
+        if not parameter.requires_grad:
+            continue
         params = parameter.numel()
         table.add_row([name, params])
         total_params += params

@@ -1,6 +1,6 @@
 from collections import defaultdict
 from collections.abc import MutableMapping
-from typing import Callable, Dict, Iterable, List, Optional, Tuple, Union
+from typing import Iterable, List, Optional, Tuple, Union
 
 import difflib
 import logging

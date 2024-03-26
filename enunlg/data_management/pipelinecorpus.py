@@ -1,5 +1,5 @@
 from collections import defaultdict
-from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple, TypeVar, Union
+from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple, TypeVar
 
 import logging
 import random

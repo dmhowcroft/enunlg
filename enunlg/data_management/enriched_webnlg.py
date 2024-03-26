@@ -11,10 +11,8 @@ import regex
 import xsdata.exceptions
 import xsdata.formats.dataclass.parsers as xsparsers
 
-from enunlg.data_management.pipelinecorpus import PipelineCorpusMapper
 from enunlg.data_management.webnlg import RDFTriple, RDFTripleList
 from enunlg.formats.xml.enriched_webnlg import EnrichedWebNLGBenchmark, EnrichedWebNLGEntry
-from enunlg.meaning_representation.slot_value import SlotValueMR
 from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg.data_management.pipelinecorpus

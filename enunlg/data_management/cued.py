@@ -83,7 +83,7 @@ def parse_cued_dialogue_acts(dialogue_act_string, keep_values=False):
             for key, vals in SCLSTM_SPECIAL.items():
                 if v in vals:  # unify the special values
                     v = key
-            if not v in SCLSTM_SPECIAL and not keep_values:  # delexicalisation
+            if v not in SCLSTM_SPECIAL and not keep_values:  # delexicalisation
                 v = '_'
             slot_value_list.append((s, v))
     return da_lib.MultivaluedDA.from_slot_value_list(act_type, slot_value_list)

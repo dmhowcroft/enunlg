@@ -1,6 +1,4 @@
-from typing import Dict, Iterable, List, Union, TYPE_CHECKING
-if TYPE_CHECKING:
-    from enunlg.data_management.webnlg import RDFTriple
+from typing import Dict, Iterable, List, TYPE_CHECKING
 
 import os
 import logging
@@ -10,6 +8,9 @@ import bidict
 import omegaconf
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from enunlg.data_management.webnlg import RDFTriple
 
 
 class IntegralRDFVocabulary(object):

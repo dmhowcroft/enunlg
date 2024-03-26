@@ -115,7 +115,7 @@ def load_e2e_csv(filepath: str) -> List[Tuple[str, str]]:
     """E2E CSV files' first column is MRs and the second column is texts. There is always a header line."""
     with open(filepath, 'r') as in_file:
         csv_reader = csv.reader(in_file)
-        header = next(csv_reader)
+        next(csv_reader)
         return E2ECorpus([E2EPair(parse_mr(pair[0]), pair[1]) for pair in csv_reader])
 
 

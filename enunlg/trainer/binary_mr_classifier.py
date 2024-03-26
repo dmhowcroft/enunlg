@@ -4,8 +4,6 @@ import logging
 import random
 import time
 
-from sacrebleu import metrics as sm
-
 import numpy as np
 import omegaconf
 import torch
