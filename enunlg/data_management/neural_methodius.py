@@ -92,7 +92,8 @@ def load_neural_methodius(splits: Optional[Iterable[str]] = None,
     if splits is None:
         splits = default_splits
     elif not set(splits).issubset(default_splits):
-        raise ValueError(f"`splits` can only contain a subset of {default_splits}. Found {splits}.")
+        message = f"`splits` can only contain a subset of {default_splits}. Found {splits}."
+        raise ValueError(message)
     corpus = MethodiusCorpus([])
     for split in splits:
         corpus.extend(load_neural_methodius_tsv(os.path.join(directory, f"{split}.tsv")))

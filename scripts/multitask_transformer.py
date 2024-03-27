@@ -218,7 +218,8 @@ def multitask_transformer_main(config: omegaconf.DictConfig):
     elif config.mode == "parameters":
         train_multitask_transformer(config, shortcircuit="parameters")
     else:
-        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+        message = "Expected config.mode to specify `train` or `parameters` modes."
+        raise ValueError(message)
 
 
 if __name__ == "__main__":

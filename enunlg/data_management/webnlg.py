@@ -112,17 +112,20 @@ class WebNLGEntry(object):
             if child.tag == 'originaltripleset':
                 triples = [RDFTriple.from_string(triple.text) for triple in child]
                 if len(triples) != reported_size:
-                    raise ValueError(f"Size mismatch. <entry> reports size {reported_size} but found {len(triples)} triples.")
+                    message = f"Size mismatch. <entry> reports size {reported_size} but found {len(triples)} triples."
+                    raise ValueError(message)
                 self.original_tripleset = RDFTripleSet(triples)
             elif child.tag == 'modifiedtripleset':
                 triples = [RDFTriple.from_string(triple.text) for triple in child]
                 if len(triples) != reported_size:
-                    raise ValueError(f"Size mismatch. <entry> reports size {reported_size} but found {len(triples)} triples.")
+                    message = f"Size mismatch. <entry> reports size {reported_size} but found {len(triples)} triples."
+                    raise ValueError(message)
                 self.modified_tripleset = RDFTripleSet(triples)
             elif child.tag == 'lex':
                 self.texts.append(WebNLGLex.from_xml(child))
             else:
-                raise ValueError(f"Unexpected child of the XML <entry> with tag: <{child.tag}>")
+                message = f"Unexpected child of the XML <entry> with tag: <{child.tag}>"
+                raise ValueError(message)
 
 
 class WebNLGCorpus(object):

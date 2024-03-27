@@ -308,7 +308,8 @@ class BaseSCLSTMModel(torch.nn.Module):
         # Initialize networks
         self.token_embeddings = torch.nn.Embedding(self.output_vocab_size, self.config.embeddings.dimensions)
         if sclstm_layer is None:
-            raise ValueError("Cannot initialise an SCLSTMModel without first defining the SCLSTM Layer")
+            message = "Cannot initialise an SCLSTMModel without first defining the SCLSTM Layer"
+            raise ValueError(message)
         self.sclstm_layer = sclstm_layer
         self.output_prediction = torch.nn.Linear(self.config.num_hidden_dims, self.output_vocab_size)
 

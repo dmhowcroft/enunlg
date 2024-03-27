@@ -45,7 +45,8 @@ def sclstm_main(config: omegaconf.DictConfig) -> None:
         raise NotImplementedError("Testing mode for SCLSTM models not yet implemented")
         # test_sclstm(config)
     else:
-        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+        message = "Expected config.mode to specify `train` or `parameters` modes."
+        raise ValueError(message)
 
 
 def train_sclstm(config: omegaconf.DictConfig, shortcircuit=None) -> None:

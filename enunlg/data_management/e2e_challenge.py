@@ -126,7 +126,8 @@ def load_e2e(corpus_config: omegaconf.DictConfig,
     """
     default_splits = set(corpus_config.splits.keys())
     if not set(splits).issubset(default_splits):
-        raise ValueError(f"`splits` can only contain a subset of {default_splits}. Found {splits}.")
+        message = f"`splits` can only contain a subset of {default_splits}. Found {splits}."
+        raise ValueError(message)
     corpus = E2ECorpus([])
     for split in splits:
         for csv_file in corpus_config.splits[split]:

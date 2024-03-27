@@ -67,7 +67,8 @@ def seq2seq_attn_main(config: omegaconf.DictConfig):
     elif config.mode == "parameters":
         train_seq2seq_attn(config, shortcircuit="parameters")
     else:
-        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+        message = "Expected config.mode to specify `train` or `parameters` modes."
+        raise ValueError(message)
 
 
 def train_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None):

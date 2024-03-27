@@ -172,17 +172,20 @@ def load_cued_data(filepath, includes_comment_header=True, human_ref_only=True):
                            for da, human_ref, _ in data])
     else:
         # TODO create a way to load triples or to alternatively load the handcrafted-rule-based reference sents.
-        raise NotImplementedError("No implementation for Wen et al. triples yet.")
+        message = "No implementation for Wen et al. triples yet."
+        raise NotImplementedError(message)
 
 
 def load_wen_et_al_dataset(name: str, splits=None):
     data_directory = WEN_ET_AL_DATASETS.get(name)
     if data_directory is None:
-        raise ValueError(f"`name` can only be one of {list(WEN_ET_AL_DATASETS.keys())}. Got {name}")
+        message = f"`name` can only be one of {list(WEN_ET_AL_DATASETS.keys())}. Got {name}"
+        raise ValueError(message)
     if splits is None:
         splits = CUED_SPLITS
     elif not set(splits).issubset(CUED_SPLITS):
-        raise ValueError(f"`splits` can only contain a subset of {CUED_SPLITS}. Found {splits}.")
+        message = f"`splits` can only contain a subset of {CUED_SPLITS}. Found {splits}."
+        raise ValueError(message)
     corpus = CUEDCorpus([])
     for split in splits:
         corpus.extend(load_cued_data(os.path.join(data_directory, f'{split}.json')))

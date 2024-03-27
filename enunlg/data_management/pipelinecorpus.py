@@ -121,7 +121,8 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
                 item.print_layers()
                 print("----")
         else:
-            raise ValueError("`random` must be None or an integer")
+            message = "`random` must be None or an integer"
+            raise ValueError(message)
 
 
 class TextPipelineCorpus(PipelineCorpus):
@@ -221,4 +222,5 @@ class PipelineCorpusMapper(object):
                 # logger.debug(f"Num entries so far: {len(output_seq)}")
             return output_seq
         else:
-            raise TypeError(f"Cannot run {self.__class__} on {type(input_corpus)}")
+            message = f"Cannot run {self.__class__} on {type(input_corpus)}"
+            raise TypeError(message)

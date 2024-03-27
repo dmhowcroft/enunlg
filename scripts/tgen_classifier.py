@@ -50,7 +50,8 @@ def preprocess(corpus, preprocessing_config):
                                                                    fields_to_delex=preprocessing_config.text.delexicalise.slots)
                                     for pair in corpus])
         else:
-            raise ValueError("We can only handle the mode where we also check splitting on caps for values right now.")
+            message = "We can only handle the mode where we also check splitting on caps for values right now."
+            raise ValueError(message)
     if preprocessing_config.mr.ignore_order:
         logger.info("Sorting slot-value pairs in the MR to ignore order...")
         corpus.sort_mr_elements()
@@ -74,7 +75,8 @@ def tgen_classifier_main(config: omegaconf.DictConfig) -> None:
     elif config.mode == "test":
         test_tgen_classifier(config)
     else:
-        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+        message = "Expected config.mode to specify `train` or `parameters` modes."
+        raise ValueError(message)
 
 
 def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):

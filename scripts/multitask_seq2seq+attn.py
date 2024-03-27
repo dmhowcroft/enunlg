@@ -175,7 +175,8 @@ def multitask_seq2seq_attn_main(config: omegaconf.DictConfig) -> None:
     elif config.mode == "test":
         test_multitask_seq2seq_attn(config)
     else:
-        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+        message = "Expected config.mode to specify `train` or `parameters` modes."
+        raise ValueError(message)
 
 
 if __name__ == "__main__":

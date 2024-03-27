@@ -75,7 +75,8 @@ class EnrichedE2ECorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
             elif isinstance(filename_or_list, str):
                 self.load_file(filename_or_list)
             else:
-                raise TypeError(f"Expected filename_or_list to be None, str, or list, not {type(filename_or_list)}")
+                message = f"Expected filename_or_list to be None, str, or list, not {type(filename_or_list)}"
+                raise TypeError(message)
 
     def load_file(self, filename):
         entries_object = xsparsers.XmlParser(handler=xsdata.formats.dataclass.parsers.handlers.lxml.LxmlEventHandler).parse(filename, EnrichedE2EEntries)
@@ -178,7 +179,8 @@ def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
                                 match_found = True
                                 break
                     else:
-                        raise ValueError("Must have possible targets for each slot!")
+                        message = "Must have possible targets for each slot!"
+                        raise ValueError(message)
                     if match_found:
                         break
                 if not match_found:
@@ -206,7 +208,8 @@ def load_enriched_e2e(enriched_e2e_config: omegaconf.DictConfig, splits: Optiona
     """
     default_splits = set(enriched_e2e_config.splits.keys())
     if not set(splits).issubset(default_splits):
-        raise ValueError(f"`splits` can only contain a subset of {default_splits}. Found {splits}.")
+        message = f"`splits` can only contain a subset of {default_splits}. Found {splits}."
+        raise ValueError(message)
     fns = []
     for split in splits:
         logger.info(split)

@@ -32,7 +32,8 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits):
       input_mode: e2e
     """
     if data_config.corpus.name not in SUPPORTED_DATASETS:
-        raise ValueError(f"Unsupported dataset: {data_config.corpus.name}")
+        message = f"Unsupported dataset: {data_config.corpus.name}"
+        raise ValueError(message)
     if data_config.corpus.name == 'e2e':
         logger.info(f"Loading E2E Challenge Data ({splits})...")
         return enunlg.data_management.e2e_challenge.load_e2e(data_config.corpus, splits)
@@ -49,4 +50,5 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits):
         logger.info("Loading SFX Restaurant data...")
         return enunlg.data_management.cued.load_sfx_restaurant(data_config.corpus.splits)
     else:
-        raise ValueError("We can only load the Enriched E2E and Enriched WebNLG datasets right now.")
+        message = f"It should not be possible to get this error message. You tried to use {data_config.corpus.name}"
+        raise ValueError(message)

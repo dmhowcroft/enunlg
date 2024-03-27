@@ -188,7 +188,9 @@ def launch_tgen(config: omegaconf.DictConfig) -> None:
     elif config.mode == "parameters":
         show_parameter_stats(config)
     else:
-        raise ValueError(f"Expected config.mode to specify `train` or `parameters` modes.")
+        message = "Expected config.mode to specify `train` or `parameters` modes."
+        raise ValueError(message)
+
 
 if __name__ == "__main__":
     launch_tgen()
