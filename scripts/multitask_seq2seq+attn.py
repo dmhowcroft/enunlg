@@ -85,9 +85,9 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
                                                                               output_vocab=generator.vocabularies["raw_output"])
 
     input_embeddings, output_embeddings = generator.prep_embeddings(text_corpus)
-    task_embeddings = []
-    for idx in range(len(input_embeddings)):
-        task_embeddings.append([output_embeddings[layer][idx] for layer in generator.layers[1:]])
+    task_embeddings = [[output_embeddings[layer][idx]
+                        for layer in generator.layers[1:]]
+                       for idx in range(len(input_embeddings))]
 
     multitask_training_pairs = list(zip(input_embeddings, task_embeddings))
     # multitask_training_pairs = multitask_training_pairs[:100]

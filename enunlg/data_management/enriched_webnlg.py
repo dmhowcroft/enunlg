@@ -111,10 +111,7 @@ def extract_raw_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
 
 
 def extract_selected_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
-    targets = []
-    for lex in entry.lex:
-        targets.append(extract_selected_input_from_lex(lex))
-    return targets
+    return [extract_selected_input_from_lex(lex) for lex in entry.lex]
 
 
 def extract_selected_input_from_lex(lex) -> RDFTripleList:
@@ -149,9 +146,7 @@ def extract_sentence_segmented_input(entry: EnrichedWebNLGEntry) -> List[Tuple[T
     for lex in entry.lex:
         selected_inputs = []
         for sentence in lex.sortedtripleset.sentence:
-            triplelist = []
-            for sortedtriple in sentence.striple:
-                triplelist.append(RDFTriple.from_string(sortedtriple))
+            triplelist = [RDFTriple.from_string(sortedtriple) for sortedtriple in sentence.striple]
             selected_inputs.append(tuple(triplelist))
         targets.append(tuple(selected_inputs))
     return targets
@@ -209,9 +204,7 @@ def extract_reg_from_lex(text, template, lex):
                             match_found = True
                             break
                 elif num_tokens > 1:
-                    parts = []
-                    for i in range(len(target_tokens)):
-                        parts.append(curr_rest[i:])
+                    parts = [curr_rest[i:] for i in range(len(target_tokens))]
                     for start_idx, token_tuple in enumerate(zip(*parts)):
                         # print(token_tuple)
                         if token_tuple == target_tokens:

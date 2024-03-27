@@ -187,9 +187,7 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         dec_outputs = self.forward_multitask(enc_emb, dec_emb)
         log_list_of_tensors_sizes(dec_outputs)
 
-        dec_targets = []
-        for task in dec_emb:
-            dec_targets.append(torch.tensor([x.unsqueeze(0) for x in task]))
+        dec_targets = [torch.tensor([x.unsqueeze(0) for x in task]) for task in dec_emb]
         log_list_of_tensors_sizes(dec_targets)
 
         loss = criterion(dec_outputs[0], dec_targets[0])
@@ -323,6 +321,7 @@ class ShallowEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
 
         dec_input = torch.tensor([[final_layer_decoder.start_idx]], device=DEVICE)
 
+        # TODO: pre-fill a tensor with zeros and then store results in that tensor (append is expensive)
         dec_outputs = []
         for dec_index in range(max_output_length):
             dec_output, dec_h_c_state = final_layer_decoder(dec_input, dec_h_c_state, enc_output)
@@ -337,9 +336,7 @@ class ShallowEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         optimizer.zero_grad()
 
         dec_outputs = self.forward_multitask(enc_emb, dec_emb)
-        dec_targets = []
-        for task in dec_emb:
-            dec_targets.append(torch.tensor([x.unsqueeze(0) for x in task]))
+        dec_targets = [torch.tensor([x.unsqueeze(0) for x in task]) for task in dec_emb]
 
         loss = criterion(dec_outputs[0], dec_targets[0])
         for outputs, targets in zip(dec_outputs[1:], dec_targets[1:]):

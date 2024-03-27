@@ -47,7 +47,7 @@ def preprocess_corpus_from_config(preprocessing_config, corpus_to_process) -> e2
     if preprocessing_config.text.delexicalise:
         logger.info('Applying delexicalisation...')
         if preprocessing_config.text.delexicalise.mode == 'split_on_caps':
-            logger.info(f'...splitting on capitals in values')
+            logger.info('...splitting on capitals in values')
             logger.info(f"...delexicalising: {preprocessing_config.text.delexicalise.slots}")
             corpus_to_process = e2e.E2ECorpus([e2e.delexicalise_exact_matches(pair,
                                                                               fields_to_delex=preprocessing_config.text.delexicalise.slots)

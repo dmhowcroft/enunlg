@@ -132,11 +132,11 @@ def multivalued_da_to_cued_mr_string(multida: da_lib.MultivaluedDA, combine_mult
     for slot in multida.slot_values:
         if slot is not None:
             if combine_multi_valued_slots:
-                value_string = " or ".join([value for value in multida.slot_values[slot]])
+                value_string = " or ".join(list(multida.slot_values[slot]))
                 if value_string == "?":
                     fields.append(slot)
                     continue
-                if " " in value_string or all([c.isdigit() for c in value_string]):
+                if " " in value_string or all(c.isdigit() for c in value_string):
                     if "'" in value_string:
                         value_string = f'"{value_string}"'
                     else:
@@ -147,7 +147,7 @@ def multivalued_da_to_cued_mr_string(multida: da_lib.MultivaluedDA, combine_mult
                     if value_string == "?":
                         fields.append(slot)
                         continue
-                    if " " in value_string or all([c.isdigit() for c in value_string]):
+                    if " " in value_string or all(c.isdigit() for c in value_string):
                         if "'" in value_string:
                             value_string = f'"{value_string}"'
                         else:

@@ -373,11 +373,7 @@ class TokenVocabulary(object):
         :param sentence: representation of a sentence as a sequence of TaggedToken tuples
         :return: a representation of the input sentence as a sequence of integers
         """
-        embedding = [self._token2int['<GO>']]
-        for token in sentence:
-            embedding.append(self.get_int(token))
-        embedding.append(self._token2int['<STOP>'])
-        return embedding
+        return [self._token2int['<GO>']] + [self.get_int(token) for token in sentence] + [self._token2int['<STOP>']]
 
     def get_ints_with_right_padding(self, sentence: Iterable[str], max_sentence_length: int = 50):
         """chore: add newline to end of file

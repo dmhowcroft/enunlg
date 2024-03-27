@@ -3,7 +3,6 @@
 import logging
 import os
 
-from hydra.core.hydra_config import HydraConfig
 
 import hydra
 import omegaconf
@@ -78,7 +77,7 @@ def train_sclstm(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     if config.preprocessing.text.delexicalise:
         logger.info('Applying delexicalisation...')
         if config.preprocessing.text.delexicalise.mode == 'permutations':
-            logger.info(f"...delexicalising all SFX-restaurant slots")
+            logger.info("...delexicalising all SFX-restaurant slots")
             # SC-LSTM delexicalises all slots it possibly can and tries different permutations of slots w/multiple values
             enunlg.util.log_sequence([mr for mr in corpus[:10]], indent="... ")
             corpus = cued.CUEDCorpus([cued.delexicalise_exact_matches(pair,

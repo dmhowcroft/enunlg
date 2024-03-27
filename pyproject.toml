@@ -50,6 +50,60 @@ types-lxml = "^2023.10.21"
 stanza = "^1.7.0"
 ruff = "^0.3.4"
 
+
+[tool.ruff]
+exclude = [
+    ".git",
+]
+
+line-length = 120
+indent-width = 4
+
+# Assume Python 3.9
+target-version = "py39"
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`), the pycodestyle (`E`), and flake8-pathlib (`PTH`)  codes by default.
+select = [
+    "A",  # Shadowing builtins
+    "B",  # Check for 'bugbears'
+    "C",  # Use comprehensions comprehensively
+#    "COM", # Check for weirdness with commas
+#    "D",  # Check for docstrings & their styles
+    "E",
+    "EM",  # Check our error messages provide more useful tracebacks
+    "F",
+#    "FBT",  # Checks for the 'boolean trap' where a bool in a function call changes behavior
+    "FURB",  # Tips for modernizing Python
+    "ICN",  # Try to stick to common conventions when using aliases with imports, etc
+#    "INP", # Implicit Namespace Package -- add __init__.py
+#    "N",  # PEP 8 naming conventions
+    "PERF",  # Performance tips linter (in preview)
+    "PIE",  # Odds and ends
+#    "PTH",
+    "R",  # PyLint suggestions for refactoring
+    "RET",  # Use return statements sensibly
+#    "RUF",  # ruff-specific checks -- currently mostly flags confusable unicode chars which are as intended
+    "SIM",  # Tips for simplifying code
+]
+ignore = ["E501"]
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

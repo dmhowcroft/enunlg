@@ -23,7 +23,7 @@ class PipelineItem(object):
 
         :param annotation_layers: dict mapping layer names to the entry for that layer
         """
-        self.annotation_layers = [string_to_python_identifier(layer_name) for layer_name in annotation_layers.keys()]
+        self.annotation_layers = [string_to_python_identifier(layer_name) for layer_name in annotation_layers]
         for new_name, layer in zip(self.annotation_layers, annotation_layers):
             self.__setattr__(new_name, annotation_layers[layer])
 
@@ -57,7 +57,7 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
                              }
         if seq:
             layer_names = seq[0].annotation_layers
-            assert all([item.annotation_layers == layer_names for item in seq]), f"Expected all items in seq to have the layers: {layer_names}"
+            assert all(item.annotation_layers == layer_names for item in seq), f"Expected all items in seq to have the layers: {layer_names}"
             self.annotation_layers = layer_names
         super(PipelineCorpus, self).__init__(seq)
 
@@ -65,7 +65,7 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
         state = {attribute: self.__getattribute__(attribute)
                  for attribute in self.STATE_ATTRIBUTES}
         state['__class__'] = self.__class__.__name__
-        state['_content'] = [x for x in self]
+        state['_content'] = list(self)
         return state
 
     @classmethod
@@ -81,7 +81,7 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
     @property
     def layer_pairs(self):
         """Layers are listed in order, so adjacent pairs of annotation layers form individual Pipeline subtasks."""
-        return [(l1, l2) for l1, l2 in zip(self.annotation_layers, self.annotation_layers[1:])]
+        return list(zip(self.annotation_layers, self.annotation_layers[1:]))
 
     def items_by_layer_pair(self, layer_pair: Tuple[str, str]):
         layer_from, layer_to = layer_pair
@@ -209,7 +209,7 @@ class PipelineCorpusMapper(object):
                 # We expand any layers of length 1, duplicating their entries, and preserving the rest of the layers
                 output = [x * num_targets if len(x) == 1 else x for x in output]
                 try:
-                    assert all([len(x) == num_targets for x in output]), f"expected all layers to have the same number of items, but received: {[len(x) for x in output]}"
+                    assert all(len(x) == num_targets for x in output), f"expected all layers to have the same number of items, but received: {[len(x) for x in output]}"
                 except AssertionError:
                     print(entry)
                     for x in output:

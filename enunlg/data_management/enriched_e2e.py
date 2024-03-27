@@ -168,9 +168,7 @@ def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
                                 match_found = True
                                 break
                     elif num_tokens > 1:
-                        parts = []
-                        for i in range(len(target_tokens)):
-                            parts.append(curr_rest[i:])
+                        parts = [curr_rest[i:] for i in range(len(target_tokens))]
                         for start_idx, token_tuple in enumerate(zip(*parts)):
                             # print(token_tuple)
                             if token_tuple == target_tokens:

@@ -48,6 +48,7 @@ class ExistingWhitespaceTokeniser(AbstractTokeniser):
 
 
 class TGenTokeniser(AbstractTokeniser):
+    """Class providing TGen's tokenisation rules for English texts."""
     # Three sets of rules. First set enforces spaces around punctuation.
     rules = (RegexRule(r'(([^\p{IsAlnum}\s\.\,−\-])\2*)', r' \1 '),
              RegexRule(r'([^\p{N}])([,.])([^\p{N}])', r'\1 \2 \3'),
@@ -71,10 +72,6 @@ class TGenTokeniser(AbstractTokeniser):
              RegexRule(r' \' ([Tt])was\s', r' \'\1 was '),
              RegexRule(r' ([Ww])anna\s', r' \1an na ')
              )
-
-    def __init__(self):
-        """Class providing TGen's tokenisation rules for English texts."""
-        pass
 
     @classmethod
     def preprocess(cls, text: str):
