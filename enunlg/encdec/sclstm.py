@@ -63,8 +63,8 @@ class JitLSTMLayer(torch.jit.ScriptModule):
         self.cell = cell(*cell_args)
 
     @torch.jit.script_method
-    def forward(self, input: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-        inputs = input.unbind(0)
+    def forward(self, input_tensor: torch.Tensor, state: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        inputs = input_tensor.unbind(0)
         outputs = torch.jit.annotate(List[torch.Tensor], [])
         for i in range(len(inputs)):
             out, state = self.cell(inputs[i], state)
@@ -260,9 +260,9 @@ class SCLSTMLayer(torch.nn.Module):
 
     # @torch.jit.script_method
     def forward(self,
-                input: torch.Tensor,
+                input_tensor: torch.Tensor,
                 state: Tuple[torch.Tensor, torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor]]:
-        inputs = input.unbind(0)
+        inputs = input_tensor.unbind(0)
         # outputs = torch.jit.annotate(List[torch.Tensor], [])
         outputs = []
         for i in range(len(inputs)):
@@ -414,6 +414,7 @@ class BaseSCLSTMModel(torch.nn.Module):
             # Start with the <go> token
             prev_token = torch.tensor([1])
             # Include the start token in the output
+            # TODO: switch to a tensor of zeros up to max_length long and fill it in (append is expensive)
             dec_outputs = [1]
             # Initialize the hidden state
             initial_hidden = self.init_h_c_state()

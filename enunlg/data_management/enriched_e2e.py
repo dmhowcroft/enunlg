@@ -106,8 +106,8 @@ def extract_selected_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
     for target in entry.targets:
         mr = {}
         for sentence in target.structuring.sentences:
-            for input in sentence.content:
-                mr[input.attribute] = input.value
+            for input_element in sentence.content:
+                mr[input_element.attribute] = input_element.value
         targets.append(SlotValueMR(mr, frozen_box=True))
     return targets
 
@@ -117,8 +117,8 @@ def extract_ordered_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
     for target in entry.targets:
         mr = {}
         for sentence in target.structuring.sentences:
-            for input in sentence.content:
-                mr[input.attribute] = input.value
+            for input_element in sentence.content:
+                mr[input_element.attribute] = input_element.value
         targets.append(SlotValueMR(mr, frozen_box=True))
     return targets
 
@@ -129,8 +129,8 @@ def extract_sentence_segmented_input(entry: EnrichedE2EEntry) -> List[Tuple[Slot
         selected_inputs = []
         for sentence in target.structuring.sentences:
             mr = {}
-            for input in sentence.content:
-                mr[input.attribute] = input.value
+            for input_element in sentence.content:
+                mr[input_element.attribute] = input_element.value
             selected_inputs.append(SlotValueMR(mr, frozen_box=True))
         targets.append(tuple(selected_inputs))
     return targets
