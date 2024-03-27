@@ -1,0 +1,13 @@
+name: enunlg-env
+channels:
+- pytorch
+- conda-forge
+- nodefaults
+dependencies:
+- python=3.9.*
+- mamba
+- pip
+- poetry=1.*
+- pytorch::pytorch=1.9.1
+platforms:
+- linux-64
