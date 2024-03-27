@@ -1,7 +1,8 @@
 """Script for running the TGen NLU classifier."""
 
+from pathlib import Path
+
 import logging
-import os
 
 import hydra
 import omegaconf
@@ -44,7 +45,7 @@ def preprocess(corpus, preprocessing_config):
     if preprocessing_config.text.delexicalise:
         logger.info('Applying delexicalisation...')
         if preprocessing_config.text.delexicalise.mode == 'split_on_caps':
-            logger.info(f'...splitting on capitals in values')
+            logger.info('...splitting on capitals in values')
             logger.info(f"...delexicalising: {preprocessing_config.text.delexicalise.slots}")
             corpus = e2e.E2ECorpus([e2e.delexicalise_exact_matches(pair,
                                                                    fields_to_delex=preprocessing_config.text.delexicalise.slots)
@@ -114,7 +115,7 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     logger.info("The same texts as lists of vocab indices")
     enunlg.util.log_sequence(train_text_ints[:10], indent="... ")
 
-    logger.info(f"Preparing neural network...")
+    logger.info("Preparing neural network...")
     tgen_classifier = binary_mr_classifier.TGenSemClassifier(token_int_mapper.size, bitvector_encoder.dimensionality, config.model)
     total_parameters = enunlg.util.count_parameters(tgen_classifier)
     if shortcircuit == 'parameters':
@@ -132,16 +133,12 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
                         torch.tensor(dec_emb, dtype=torch.float))
                         for enc_emb, dec_emb in zip(dev_text_ints, dev_mr_bitvectors)]
 
-    training_pairs = training_pairs[:100]
-    validation_pairs = validation_pairs[:20]
-
-
     logger.info(f"Running {config.train.num_epochs} epochs of {len(training_pairs)} iterations (with {len(validation_pairs)} validation pairs")
     losses_for_plotting = trainer.train_iterations(training_pairs, validation_pairs)
 
-    tgen_classifier.save(os.path.join(config.output_dir, f'trained_{tgen_classifier.__class__.__name__}.nlg'))
-    token_int_mapper.save(os.path.join(config.output_dir, f'{token_int_mapper.__class__.__name__}.nlg'))
-    bitvector_encoder.save(os.path.join(config.output_dir, f'{bitvector_encoder.__class__.__name__}.nlg'))
+    tgen_classifier.save(Path(config.output_dir) / f'trained_{tgen_classifier.__class__.__name__}.nlg')
+    token_int_mapper.save(Path(config.output_dir) / f'{token_int_mapper.__class__.__name__}.nlg')
+    bitvector_encoder.save(Path(config.output_dir) / f'{bitvector_encoder.__class__.__name__}.nlg')
 
 
 def test_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
@@ -153,7 +150,7 @@ def test_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
 
     corpus = preprocess(corpus, config.preprocessing)
 
-    logger.info(f"Loading neural network...")
+    logger.info("Loading neural network...")
     tgen_classifier = binary_mr_classifier.TGenSemClassifier.load(config.test.classifier_file)
     total_parameters = enunlg.util.count_parameters(tgen_classifier)
     if shortcircuit == 'parameters':

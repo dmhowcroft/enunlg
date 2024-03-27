@@ -1,9 +1,9 @@
+from pathlib import Path
 from typing import Dict, Iterable, Optional
 
 import itertools
 import json
 import logging
-import os
 
 import box
 import regex
@@ -13,15 +13,15 @@ import enunlg.meaning_representation.dialogue_acts as da_lib
 
 logger = logging.getLogger(__name__)
 
-SFX_RESTAURANT_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/raw/RNNLG/data/original/restaurant')
-SFX_HOTEL_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/raw/RNNLG/data/original/hotel')
-LAPTOP_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/raw/RNNLG/data/original/laptop')
-TV_DIR = os.path.join(os.path.dirname(__file__), '../../datasets/raw/RNNLG/data/original/tv')
+SFX_RESTAURANT_DIR = Path(__file__).parent / '../../datasets/raw/RNNLG/data/original/restaurant'
+SFX_HOTEL_DIR = Path(__file__).parent / '../../datasets/raw/RNNLG/data/original/hotel'
+LAPTOP_DIR = Path(__file__).parent / '../../datasets/raw/RNNLG/data/original/laptop'
+TV_DIR = Path(__file__).parent / '../../datasets/raw/RNNLG/data/original/tv'
 
-WEN_ET_AL_DATASETS: Dict[str, str] = {"sfx_restaurant": SFX_RESTAURANT_DIR,
-                                      "sfx_hotel": SFX_HOTEL_DIR,
-                                      "laptop": LAPTOP_DIR,
-                                      "tv": TV_DIR}
+WEN_ET_AL_DATASETS: Dict[str, Path] = {"sfx_restaurant": SFX_RESTAURANT_DIR,
+                                       "sfx_hotel": SFX_HOTEL_DIR,
+                                       "laptop": LAPTOP_DIR,
+                                       "tv": TV_DIR}
 
 CUED_SPLITS = ('train', 'valid', 'test')
 
@@ -158,7 +158,7 @@ def multivalued_da_to_cued_mr_string(multida: da_lib.MultivaluedDA, combine_mult
 
 def load_cued_json(filepath, includes_comment_header=True):
     """Load a JSON file, potentially ignoring the 5 line comment header used by Wen et al."""
-    with open(filepath) as input_file:
+    with Path(filepath).open() as input_file:
         if includes_comment_header:
             for _ in range(5):
                 next(input_file)
@@ -188,7 +188,7 @@ def load_wen_et_al_dataset(name: str, splits=None):
         raise ValueError(message)
     corpus = CUEDCorpus([])
     for split in splits:
-        corpus.extend(load_cued_data(os.path.join(data_directory, f'{split}.json')))
+        corpus.extend(load_cued_data(Path(data_directory) / f'{split}.json'))
     corpus.metadata = {'name': name,
                        'splits': splits,
                        'directory': data_directory}
