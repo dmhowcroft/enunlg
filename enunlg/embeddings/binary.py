@@ -76,7 +76,7 @@ class DialogueActEmbeddings(object):
             self.acts[act] = index
         for index, slot_value in enumerate(self._slot_value_pairs):
             self.slot_value_pairs[slot_value] = index
-        self._unk_sv_pair = index + 1
+        self._unk_sv_pair = len(self.slot_value_pairs) + 1
 
     def embed_da(self, multi_da: "dialogue_acts.MultivaluedDA") -> List[float]:
         act_embedding = [0.0 for _ in range(len(self.acts))]
@@ -124,3 +124,15 @@ class DialogueActEmbeddings(object):
         if tgz:
             with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
                 out_file.add(filepath, arcname=os.path.basename(filepath))
+
+    @classmethod
+    def load_from_dir(cls, filepath):
+        with open(os.path.join(filepath, '__class__.__name__'), 'r') as class_file:
+            assert class_file.read().strip() == cls.__name__
+            new_instance = cls([])
+            state = omegaconf.OmegaConf.load(os.path.join(filepath, "_save_state.yaml"))
+            for attribute in state:
+                setattr(new_instance, attribute, state[attribute])
+            new_instance.acts = bidict.OrderedBidict(new_instance.acts)
+            new_instance.slot_value_pairs = bidict.OrderedBidict(new_instance.slot_value_pairs)
+            return new_instance
