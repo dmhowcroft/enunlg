@@ -5,6 +5,7 @@ from pathlib import Path
 import logging
 
 import hydra
+import numpy as np
 import omegaconf
 import torch
 
@@ -150,17 +151,40 @@ def test_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
 
     corpus = preprocess(corpus, config.preprocessing)
 
+    # Load token_int_mapper
+    token_int_mapper = enunlg.vocabulary.TokenVocabulary.load_from_dir(Path(config.test.classifier_file).parent / "TokenVocabulary.nlg")
+    # Load bitvector_encoder
+    bitvector_encoder = enunlg.embeddings.binary.DialogueActEmbeddings.load_from_dir(Path(config.test.classifier_file).parent / "DialogueActEmbeddings.nlg")
+
+    # Prepare text/output integer representation
+    test_tokens = [text.strip().split() for _, text in corpus]
+    test_text_ints = [token_int_mapper.get_ints_with_left_padding(text.split()) for _, text in corpus]
+    multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in corpus]
+    test_mr_bitvectors = [bitvector_encoder.embed_da(mr) for mr in multi_da_mrs]
+
     logger.info("Loading neural network...")
     tgen_classifier = binary_mr_classifier.TGenSemClassifier.load(config.test.classifier_file)
     total_parameters = enunlg.util.count_parameters(tgen_classifier)
     if shortcircuit == 'parameters':
         exit()
 
-    # test_pairs = [(torch.tensor(enc_emb, dtype=torch.long),
-    #                    torch.tensor(dec_emb, dtype=torch.float))
-    #                   for enc_emb, dec_emb in zip(train_text_ints, train_mr_bitvectors)]
-    #
+    test_pairs = [(torch.tensor(text_ints, dtype=torch.long),
+                   torch.tensor(mr_bitvectors, dtype=torch.float))
+                  for text_ints, mr_bitvectors in zip(test_text_ints, test_mr_bitvectors)]
 
+    error = 0
+    for i, o in test_pairs:
+        prediction = tgen_classifier.predict(i).squeeze(0).squeeze(0).tolist()
+        target_bitvector = np.round(o.tolist())
+        output_bitvector = np.round(prediction)
+        print(prediction)
+        print(target_bitvector)
+        print(output_bitvector)
+        current = enunlg.util.hamming_error(target_bitvector, output_bitvector)
+        print(current)
+        error += current
+    error = error / len(test_pairs)
+    logger.info(f"Test error: {error:0.2f}")
 
 
 if __name__ == "__main__":

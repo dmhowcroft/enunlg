@@ -45,3 +45,4 @@ train:
 
 test:
   test_splits: [test]
+  classifier_file: outputs/2024-03-21/14-55-01/trained_TGenSemClassifier.nlg.tgz
