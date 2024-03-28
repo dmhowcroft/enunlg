@@ -56,3 +56,7 @@ def mr_to_rdf(mr):
         if slot != "name":
             tripleset.append(RDFTriple(agent, slot, mr[slot]))
     return RDFTripleList(tripleset)
+
+
+def hamming_error(target_bitvector, bitvector) -> float:
+    return sum(abs(target_bitvector - bitvector))/sum(target_bitvector)

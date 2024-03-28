@@ -9,15 +9,12 @@ import omegaconf
 import torch
 
 from enunlg.trainer.base import BasicTrainer
+from enunlg.util import hamming_error
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
 
 if TYPE_CHECKING:
     import enunlg.nlu.binary_mr_classifier
-
-
-def hamming_error(target_bitvector, bitvector) -> float:
-    return sum(abs(target_bitvector - bitvector))/sum(target_bitvector)
 
 
 class BinaryMRClassifierTrainer(BasicTrainer):
