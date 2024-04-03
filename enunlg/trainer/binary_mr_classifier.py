@@ -41,7 +41,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
         self._early_stopping_scores = [float('inf')] * 5
         self._early_stopping_scores_changed = 0
 
-    def _log_examples_this_interval(self, pairs):
+    def _log_examples_this_interval(self, pairs: List[Tuple[torch.Tensor, torch.Tensor]]):
         for i, o in pairs[:10]:
             logger.info("An example!")
             logger.info(f"Text:   {' '.join([x for x in self.text_vocab.get_tokens(i.tolist()) if x != '<VOID>'])}")
@@ -103,7 +103,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
         self.tb_writer.close()
         return loss_to_plot
 
-    def sample_generations_and_references(self, pairs) -> Tuple[List[str], List[str]]:
+    def sample_generations_and_references(self, pairs: List[Tuple[torch.Tensor, torch.Tensor]]) -> Tuple[List[str], List[str]]:
         best_outputs = []
         ref_outputs = []
         for in_indices, out_indices in pairs:
@@ -115,7 +115,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
             ref_outputs.append(self.bitvector_vocab.pretty_string(out_indices.tolist()))
         return best_outputs, ref_outputs
 
-    def early_stopping_criterion_met(self, validation_pairs) -> bool:
+    def early_stopping_criterion_met(self, validation_pairs: List[Tuple[torch.Tensor, torch.Tensor]]) -> bool:
         error = 0
         for i, o in validation_pairs:
             prediction = self.model.predict(i).squeeze(0).squeeze(0).tolist()
@@ -123,7 +123,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
             output_bitvector = np.round(prediction)
             error += hamming_error(target_bitvector, output_bitvector)
         error = error / len(validation_pairs)
-        logger.info(f"Current error count: {error}")
+        logger.info(f"Current error score: {error}")
         if error < self._early_stopping_scores[-1]:
             self._early_stopping_scores.append(error)
             self._early_stopping_scores = sorted(self._early_stopping_scores, reverse=True)[1:]
