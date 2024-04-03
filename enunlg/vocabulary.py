@@ -233,7 +233,7 @@ class IntegralInformVocabulary(IntegralDialogueActVocabulary):
 
 
 class TokenVocabulary(object):
-    STATE_ATTRIBUTES = ("_token2int", "_max_index", "_filler")
+    STATE_ATTRIBUTES = ("_token2int", "_max_index")
 
     def __init__(self, dataset: Iterable[Iterable[str]]) -> None:
         """
@@ -251,7 +251,6 @@ class TokenVocabulary(object):
             '<-s>': 4
         })
         self._max_index = 4
-        self._filler = {0}
         self._init_vocabulary()
 
     def _save_classname_to_dir(self, directory_path):
