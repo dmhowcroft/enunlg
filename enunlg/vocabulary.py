@@ -263,17 +263,10 @@ class TokenVocabulary(object):
         state = {}
         for attribute in self.STATE_ATTRIBUTES:
             curr_obj = getattr(self, attribute)
-            save_method = getattr(curr_obj, 'save', None)
             if attribute == "_token2int":
                 state[attribute] = dict(curr_obj)
-            elif save_method is None:
-                if isinstance(curr_obj, set):
-                    state[attribute] = tuple(curr_obj)
-                else:
-                    state[attribute] = curr_obj
             else:
-                state[attribute] = f"./{attribute}"
-                curr_obj.save(f"{filepath}/{attribute}")
+                state[attribute] = curr_obj
         with open(os.path.join(filepath, "_save_state.yaml"), 'w') as state_file:
             state = omegaconf.OmegaConf.create(state)
             omegaconf.OmegaConf.save(state, state_file)
@@ -313,10 +306,6 @@ class TokenVocabulary(object):
     @property
     def tokens(self):
         return list(self._token2int.keys())
-
-    @property
-    def filler(self):
-        return self._filler
 
     @property
     def max_index(self):
