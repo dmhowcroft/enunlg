@@ -158,7 +158,7 @@ def test_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
 
     # Prepare text/output integer representation
     test_tokens = [text.strip().split() for _, text in corpus]
-    test_text_ints = [token_int_mapper.get_ints_with_left_padding(text.split()) for _, text in corpus]
+    test_text_ints = [token_int_mapper.get_ints_with_left_padding(text) for text in test_tokens]
     multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in corpus]
     test_mr_bitvectors = [bitvector_encoder.embed_da(mr) for mr in multi_da_mrs]
 
@@ -177,11 +177,11 @@ def test_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
         prediction = tgen_classifier.predict(i).squeeze(0).squeeze(0).tolist()
         target_bitvector = np.round(o.tolist())
         output_bitvector = np.round(prediction)
-        print(prediction)
-        print(target_bitvector)
-        print(output_bitvector)
+        # print(prediction)
+        # print(target_bitvector)
+        # print(output_bitvector)
         current = enunlg.util.hamming_error(target_bitvector, output_bitvector)
-        print(current)
+        # print(current)
         error += current
     error = error / len(test_pairs)
     logger.info(f"Test error: {error:0.2f}")
