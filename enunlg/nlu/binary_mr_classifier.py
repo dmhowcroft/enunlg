@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 import logging
@@ -99,12 +100,16 @@ class TGenSemClassifier(torch.nn.Module):
                 tarfile_member_names = classifier_file.getmembers()
                 classifier_file.extractall(tmp_dir)
                 root_name = tarfile_member_names[0].name
-                with open(os.path.join(tmp_dir, root_name, "__class__.__name__"), 'r') as class_name_file:
-                    class_name = class_name_file.read().strip()
-                    assert class_name == cls.__name__
-                init_args = omegaconf.OmegaConf.load(os.path.join(tmp_dir, root_name, '_init_args.yaml'))
-                model_config = omegaconf.OmegaConf.load(os.path.join(tmp_dir, root_name, 'model_config.yaml'))
-                model = cls(init_args.text_vocab_size, init_args.bitvector_encoder_dims, model_config)
-                state_dict = torch.load(os.path.join(tmp_dir, root_name, '_state_dict.pt'))
-                model.load_state_dict(state_dict)
-                return model
+                return cls.load_from_dir(Path(tmp_dir) / root_name)
+
+    @classmethod
+    def load_from_dir(cls, filepath):
+        with (Path(filepath) / "__class__.__name__").open('r') as class_name_file:
+            class_name = class_name_file.read().strip()
+            assert class_name == cls.__name__
+        init_args = omegaconf.OmegaConf.load(Path(filepath) / '_init_args.yaml')
+        model_config = omegaconf.OmegaConf.load(Path(filepath) / 'model_config.yaml')
+        model = cls(init_args.text_vocab_size, init_args.bitvector_encoder_dims, model_config)
+        state_dict = torch.load(Path(filepath) / '_state_dict.pt')
+        model.load_state_dict(state_dict)
+        return model
