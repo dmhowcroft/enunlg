@@ -1,3 +1,4 @@
+from ast import literal_eval
 from typing import Iterable, List, MutableMapping, Optional, Set, Text, Tuple, TYPE_CHECKING
 
 import logging
@@ -111,14 +112,11 @@ class DialogueActEmbeddings(object):
             if attribute in ("acts", "slot_value_pairs"):
                 # These are bidicts, so we'll save them as dicts
                 state[attribute] = {str(k): curr_obj[k] for k in curr_obj}
-            elif save_method is None:
+            else:
                 if isinstance(curr_obj, set):
                     state[attribute] = tuple(curr_obj)
                 else:
                     state[attribute] = curr_obj
-            else:
-                state[attribute] = f"./{attribute}"
-                curr_obj.save(f"{filepath}/{attribute}")
         with open(os.path.join(filepath, "_save_state.yaml"), 'w') as state_file:
             omegaconf.OmegaConf.save(state, state_file)
         if tgz:
@@ -129,10 +127,19 @@ class DialogueActEmbeddings(object):
     def load_from_dir(cls, filepath):
         with open(os.path.join(filepath, '__class__.__name__'), 'r') as class_file:
             assert class_file.read().strip() == cls.__name__
-            new_instance = cls([])
-            state = omegaconf.OmegaConf.load(os.path.join(filepath, "_save_state.yaml"))
-            for attribute in state:
-                setattr(new_instance, attribute, state[attribute])
-            new_instance.acts = bidict.OrderedBidict(new_instance.acts)
-            new_instance.slot_value_pairs = bidict.OrderedBidict(new_instance.slot_value_pairs)
-            return new_instance
+        new_instance = cls([])
+        state = omegaconf.OmegaConf.load(os.path.join(filepath, "_save_state.yaml"))
+        for attribute in state:
+            setattr(new_instance, attribute, state[attribute])
+        # These are saved as tuples so we need to convert them to the correct type
+        new_instance._acts = set(new_instance._acts)
+        new_instance._slot_value_pairs = set(new_instance._slot_value_pairs)
+        # These are saved as plain dicts, so we need to convert them to the right type
+        new_instance.acts = bidict.OrderedBidict(new_instance.acts)
+        strings = list(new_instance.slot_value_pairs.keys())
+        new_instance.slot_value_pairs = dict(new_instance.slot_value_pairs)
+        for k in strings:
+            new_instance.slot_value_pairs[literal_eval(k)] = new_instance.slot_value_pairs[k]
+            new_instance.slot_value_pairs.pop(k)
+        new_instance.slot_value_pairs = bidict.OrderedBidict(new_instance.slot_value_pairs)
+        return new_instance
