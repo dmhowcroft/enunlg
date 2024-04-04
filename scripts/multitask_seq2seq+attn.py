@@ -5,17 +5,19 @@ from sacrebleu import metrics as sm
 
 import omegaconf
 import hydra
+import torch
 
+from enunlg.convenience.binary_mr_classifier import FullBinaryMRClassifier
 from enunlg.data_management.loader import load_data_from_config
 from enunlg.generators.multitask_seq2seq import MultitaskSeq2SeqGenerator
 
 import enunlg.data_management.enriched_webnlg
 import enunlg.data_management.pipelinecorpus
 import enunlg.encdec.multitask_seq2seq
+import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.trainer.multitask_seq2seq
 import enunlg.util
 import enunlg.vocabulary
-import enunlg.util
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
 
@@ -108,8 +110,9 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
 
     # Drop entries that are missing data
     validate_enriched_e2e(corpus)
+    multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr in corpus.items_by_layer('raw_input')]
 
-    if config.data.corpus.name == "enriched-e2e" and config.data.input_mode == "rdf":
+    if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
         translate_e2e_to_rdf(corpus)
 
     if config.data.input_mode == "rdf":
@@ -146,7 +149,7 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
     outputs = [generator.model.generate(embedding) for embedding in test_input]
 
     best_outputs = [" ".join(generator.vocabularies['raw_output'].get_tokens([int(x) for x in output])) for output in outputs]
-    ref_outputs = [" ".join(generator.vocabularies['raw_output'].get_tokens([int(x) for x in output])) for output in test_ref]
+    ref_outputs = [" ".join(generator.vocabularies['raw_output'].get_tokens([int(x) for x in output[1:]])).replace(" @ ", " ") for output in test_ref]
     for best, ref in zip(best_outputs[:10], ref_outputs[:10]):
         logger.info(best)
         logger.info(ref)
@@ -156,6 +159,17 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
     # We only have one reference per output
     bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
     logger.info(f"Current score: {bleu_score}")
+
+    # Estimate SER using classifier
+    classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
+    test_tokens = [text.strip().split() for text in best_outputs]
+    test_text_ints = [classifier.text_vocab.get_ints(text) for text in test_tokens]
+    test_mr_bitvectors = [classifier.binary_mr_vocab.embed_da(mr) for mr in multi_da_mrs]
+    ser_pairs = [(torch.tensor(text_ints, dtype=torch.long),
+                  torch.tensor(mr_bitvectors, dtype=torch.float))
+                 for text_ints, mr_bitvectors in zip(test_text_ints, test_mr_bitvectors)]
+
+    logger.info(f"Test error: {classifier.evaluate(ser_pairs):0.2f}")
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')
