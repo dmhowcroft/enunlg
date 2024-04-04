@@ -61,6 +61,6 @@ if __name__ == "__main__":
         vocab, embeddings = GloVeEmbeddings.from_word_embedding_txt('../../datasets/RNNLG/vec/vectors-80.txt', with_vocab=True)
         print(vocab)
         print(embeddings)
-    except FileNotFoundError:
+    except FileNotFoundError as err:
         raise FileNotFoundError("\nUnable to find the GloVe vectors from Wen et al."
-                                "\nDid you already run scripts/fetch_cued.bash ?")
+                                "\nDid you already run scripts/fetch_cued.bash ?") from err

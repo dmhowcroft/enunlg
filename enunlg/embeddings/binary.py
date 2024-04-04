@@ -108,7 +108,6 @@ class DialogueActEmbeddings(object):
         state = {}
         for attribute in self.STATE_ATTRIBUTES:
             curr_obj = getattr(self, attribute)
-            save_method = getattr(curr_obj, 'save', None)
             if attribute in ("acts", "slot_value_pairs"):
                 # These are bidicts, so we'll save them as dicts
                 state[attribute] = {str(k): curr_obj[k] for k in curr_obj}
