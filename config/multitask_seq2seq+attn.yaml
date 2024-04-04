@@ -92,4 +92,5 @@ train:
 
 test:
   generator_file: trained_MultitaskSeq2SeqGenerator.pt.tgz
+  classifier_file: models/e2e.semclassifier.nlg.tgz
   test_splits: [test]
