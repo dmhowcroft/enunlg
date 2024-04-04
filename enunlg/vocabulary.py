@@ -250,6 +250,7 @@ class TokenVocabulary(object):
             '<UNK>': 3,
             '<-s>': 4
         })
+        self._filler = {0}
         self._max_index = 4
         self._init_vocabulary()
 
@@ -302,6 +303,10 @@ class TokenVocabulary(object):
         for attribute in cls.STATE_ATTRIBUTES:
             new_generator.__setattr__(attribute, state[attribute])
         return new_generator
+
+    @property
+    def filler(self):
+        return self._filler
 
     @property
     def tokens(self):
