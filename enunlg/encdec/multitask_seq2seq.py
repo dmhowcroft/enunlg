@@ -1,6 +1,6 @@
+from pathlib import Path
 from typing import List
 
-import os
 import logging
 import tarfile
 
@@ -205,31 +205,31 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
             return self.forward_e2e(enc_emb, max_length)
 
     def _save_classname_to_dir(self, directory_path):
-        with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
+        with (Path(directory_path) / "__class__.__name__").open('w') as class_file:
             class_file.write(self.__class__.__name__)
 
     def save(self, filepath, tgz=True):
-        os.mkdir(filepath)
+        Path(filepath).mkdir
         self._save_classname_to_dir(filepath)
-        with open(f"{filepath}/_state_dict.pt", 'wb') as state_file:
+        with (Path(filepath) / "_state_dict.pt").open('wb') as state_file:
             torch.save(self.state_dict(), state_file)
-        with open(f"{filepath}/model_config.yaml", 'w') as config_file:
+        with (Path(filepath) / "model_config.yaml").open('w') as config_file:
             omegaconf.OmegaConf.save(self.config, config_file)
-        with open(f"{filepath}/_init_args.yaml", 'w') as init_args_file:
+        with (Path(filepath) / "_init_args.yaml").open('w') as init_args_file:
             omegaconf.OmegaConf.save({'layer_names': self.layer_names,
                                       'layer_vocab_sizes': self.layer_vocab_sizes},
                                      init_args_file)
         if tgz:
             with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
-                out_file.add(filepath, arcname=os.path.basename(filepath))
+                out_file.add(filepath, arcname=Path(filepath).parent)
 
     @classmethod
     def load_from_dir(cls, filepath):
-        with open(os.path.join(filepath, '__class__.__name__'), 'r') as class_file:
+        with (Path(filepath) / "__class__.__name__").open('r') as class_file:
             assert class_file.read().strip() == cls.__name__
-        model_config = omegaconf.OmegaConf.load(os.path.join(filepath, 'model_config.yaml'))
-        init_args = omegaconf.OmegaConf.load(os.path.join(filepath, '_init_args.yaml'))
-        state_dict = torch.load(os.path.join(filepath, '_state_dict.pt'))
+        model_config = omegaconf.OmegaConf.load(Path(filepath) / 'model_config.yaml')
+        init_args = omegaconf.OmegaConf.load(Path(filepath) / '_init_args.yaml')
+        state_dict = torch.load(Path(filepath) / '_state_dict.pt')
         new_model = cls(layer_names=init_args['layer_names'], layer_vocab_sizes=init_args['layer_vocab_sizes'], model_config=model_config)
         new_model.load_state_dict(state_dict)
         return new_model
