@@ -64,15 +64,25 @@ class FullBinaryMRClassifier(object):
                 tarfile_member_names = generator_file.getmembers()
                 generator_file.extractall(tmp_dir)
                 root_name = Path(tarfile_member_names[0].name).parts[0]
-                with (Path(tmp_dir) / root_name / "__class__.__name__").open('r') as class_name_file:
-                    class_name = class_name_file.read().strip()
-                    assert class_name == cls.__name__, f"{class_name} != {cls.__name__}"
-                model = enunlg.nlu.binary_mr_classifier.TGenSemClassifier.load_from_dir(Path(tmp_dir) / root_name / 'model')
-                text_vocab = enunlg.vocabulary.TokenVocabulary.load_from_dir(Path(tmp_dir) / root_name / 'text_vocab')
-                binary_mr_vocab = enunlg.embeddings.binary.DialogueActEmbeddings.load_from_dir(Path(tmp_dir) / root_name / 'binary_mr_vocab')
-                classifier = cls(text_vocab, binary_mr_vocab, model.config)
-                classifier.model = model
-                return classifier
+                root_dir = Path(tmp_dir) / root_name
+                return cls.load_from_dir(root_dir)
+        elif Path(filepath).is_dir():
+            return cls.load_from_dir(filepath)
+        else:
+            message = f"filepath must be the location of a tarfile or a directory, but this is neither:\n{filepath}"
+            raise ValueError(message)
+
+    @classmethod
+    def load_from_dir(cls, filepath):
+        with (Path(filepath) / "__class__.__name__").open('r') as class_name_file:
+            class_name = class_name_file.read().strip()
+            assert class_name == cls.__name__, f"{class_name} != {cls.__name__}"
+        model = enunlg.nlu.binary_mr_classifier.TGenSemClassifier.load_from_dir(Path(filepath) / 'model')
+        text_vocab = enunlg.vocabulary.TokenVocabulary.load_from_dir(Path(filepath) / 'text_vocab')
+        binary_mr_vocab = enunlg.embeddings.binary.DialogueActEmbeddings.load_from_dir(Path(filepath) / 'binary_mr_vocab')
+        classifier = cls(text_vocab, binary_mr_vocab, model.config)
+        classifier.model = model
+        return classifier
 
     def evaluate(self, test_pairs):
         error = 0
