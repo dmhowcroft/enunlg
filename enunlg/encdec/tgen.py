@@ -1,6 +1,8 @@
+from pathlib import Path
 from typing import List, Optional, Tuple, TYPE_CHECKING
 
 import logging
+import tarfile
 
 import omegaconf
 import torch
@@ -11,8 +13,6 @@ if TYPE_CHECKING:
     import enunlg.vocabulary
 
 logger = logging.getLogger(__name__)
-
-DEVICE = torch.device("cpu")
 
 
 class TGenEnc(BasicLSTMEncoder):
@@ -39,18 +39,14 @@ class TGenDec(LSTMDecWithAttention):
 
 class TGenEncDec(torch.nn.Module):
     def __init__(self,
-                 input_vocab: "enunlg.vocabulary.IntegralInformVocabulary",
-                 output_vocab: "enunlg.vocabulary.TokenVocabulary",
+                 input_vocab_size: int,
+                 output_vocab_size: int,
                  model_config=None):
         """
         TGenEncDec corresponds to TGen's seq2seq model with attention.
 
         TGen's model appears to be based on Tensorflow 0.6:
         https://github.com/tensorflow/tensorflow/blob/v0.6.0/tensorflow/python/ops/seq2seq.py
-
-        :param input_vocab:
-        :param output_vocab:
-        :param model_config:
         """
         super().__init__()
         if model_config is None:
@@ -60,7 +56,7 @@ class TGenEncDec(torch.nn.Module):
                                                  'encoder':
                                                      {'embeddings':
                                                          {'type': 'torch',
-                                                          'num_embeddings': input_vocab.max_index + 1,
+                                                          'num_embeddings': input_vocab_size,
                                                           'embedding_dim': 50,
                                                           'backprop': True
                                                           },
@@ -69,9 +65,12 @@ class TGenEncDec(torch.nn.Module):
                                                  'decoder':
                                                      {'embeddings':
                                                          {'type': 'torch',
-                                                          'num_embeddings': output_vocab.max_index + 1,
+                                                          'num_embeddings': output_vocab_size,
                                                           'dimensions': 50,
-                                                          'backprop': True
+                                                          'backprop': True,
+                                                          'padding_idx': 0,
+                                                          'start_token_idx': 1,
+                                                          'stop_token_idx': 2,
                                                           },
                                                       'cell': 'lstm',
                                                       'num_hidden_dims': 50
@@ -80,16 +79,16 @@ class TGenEncDec(torch.nn.Module):
         self.config = model_config
 
         # Set basic properties
-        self.input_vocab = input_vocab
-        self.output_vocab = output_vocab
+        self.input_vocab_size = input_vocab_size
+        self.output_vocab_size = output_vocab_size
 
         # Initialize encoder and decoder networks
         # TODO either tie enc-dec num hidden dims together or add code to handle config when they have diff dimensionality
-        self.encoder = TGenEnc(self.input_vocab.size, self.config.encoder.num_hidden_dims)
-        self.decoder = TGenDec(self.config.decoder.num_hidden_dims, self.output_vocab.size, self.config.max_input_length,
-                               padding_idx=self.output_vocab.padding_token_int,
-                               start_token_idx=self.output_vocab.start_token_int,
-                               stop_token_idx=self.output_vocab.stop_token_int)
+        self.encoder = TGenEnc(self.input_vocab_size, self.config.encoder.num_hidden_dims)
+        self.decoder = TGenDec(self.config.decoder.num_hidden_dims, self.output_vocab_size, self.config.max_input_length,
+                               padding_idx=self.config.decoder.embeddings.get('padding_idx'),
+                               start_token_idx=self.config.decoder.embeddings.get('start_idx'),
+                               stop_token_idx=self.config.decoder.embeddings.get('stop_idx'))
 
         # Features copied from tgen.seq2seq.Seq2SeqBase
         # self.beam_size = 1
@@ -164,7 +163,7 @@ class TGenEncDec(torch.nn.Module):
         enc_outputs, enc_h_c_state = self.encode(enc_emb)
 
         dec_h_c_state = enc_h_c_state
-        dec_input = torch.tensor([[self.decoder.start_idx]], device=DEVICE)
+        dec_input = torch.tensor([[self.decoder.start_idx]])
         dec_outputs = [self.decoder.start_idx]
 
         for dec_index in range(max_output_length):
@@ -180,7 +179,7 @@ class TGenEncDec(torch.nn.Module):
         enc_outputs, enc_h_c_state = self.encode(enc_emb)
 
         dec_h_c_state = enc_h_c_state
-        dec_outputs = torch.zeros((len(dec_emb), self.output_vocab.size))
+        dec_outputs = torch.zeros((len(dec_emb), self.output_vocab_size))
         # First symbol is the start symbol
         dec_outputs[0] = dec_emb[0]
 
@@ -244,8 +243,34 @@ class TGenEncDec(torch.nn.Module):
         with torch.no_grad():
             return self.forward(enc_emb, max_length)
 
-    def input_rep_to_string(self, input_token_indices) -> str:
-        return self.input_vocab.pretty_string(input_token_indices)
+    def _save_classname_to_dir(self, directory_path):
+        with (Path(directory_path) / "__class__.__name__").open('w') as class_file:
+            class_file.write(self.__class__.__name__)
 
-    def output_rep_to_string(self, output_token_indices) -> str:
-        return self.output_vocab.pretty_string(output_token_indices)
+    def save(self, filepath, tgz=True):
+        Path(filepath).mkdir()
+        self._save_classname_to_dir(filepath)
+        with (Path(filepath) / "_state_dict.pt").open('wb') as state_file:
+            torch.save(self.state_dict(), state_file)
+        with (Path(filepath) / "model_config.yaml").open('w') as config_file:
+            omegaconf.OmegaConf.save(self.config, config_file)
+        with (Path(filepath) / "_init_args.yaml").open('w') as init_args_file:
+            omegaconf.OmegaConf.save({'input_vocab_size': self.input_vocab_size,
+                                      'output_vocab_size': self.output_vocab_size},
+                                     init_args_file)
+        if tgz:
+            with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
+                out_file.add(filepath, arcname=Path(filepath).parent)
+
+    @classmethod
+    def load_from_dir(cls, filepath):
+        with (Path(filepath) / "__class__.__name__").open('r') as class_file:
+            assert class_file.read().strip() == cls.__name__
+        model_config = omegaconf.OmegaConf.load(Path(filepath) / 'model_config.yaml')
+        init_args = omegaconf.OmegaConf.load(Path(filepath) / '_init_args.yaml')
+        state_dict = torch.load(Path(filepath) / '_state_dict.pt')
+        new_model = cls(input_vocab=enunlg.vocabulary.IntegralInformVocabulary([]),
+                        output_vocab=enunlg.vocabulary.TokenVocabulary([]),
+                        model_config=model_config)
+        new_model.load_state_dict(state_dict)
+        return new_model

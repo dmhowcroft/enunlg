@@ -1,5 +1,5 @@
 defaults:
-  - data/corpus: e2e_train
+  - data/corpus: e2e
   - _self_
 
 random_seed: 42
@@ -48,3 +48,10 @@ train:
   optimizer: adam
   learning_rate: 0.0005
   learning_rate_decay: 0.5 # TGen used 0.0
+  train_splits: [train]
+  dev_splits: [dev]
+
+test:
+  generator_file: trained-tgen-model.pt
+  classifier_file: models/e2e.semclassifier.nlg.tgz
+  test_splits: [test]

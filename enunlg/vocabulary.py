@@ -139,8 +139,45 @@ class IntegralDialogueActVocabulary(object):
         #       this class doesn't mess things up for subclasses after we implement it.
         raise NotImplementedError()
 
+    def _save_classname_to_dir(self, directory_path):
+        with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
+            class_file.write(self.__class__.__name__)
+
+    def save(self, filepath, tgz=False):
+        os.mkdir(filepath)
+        self._save_classname_to_dir(filepath)
+        state = {}
+        for attribute in self.STATE_ATTRIBUTES:
+            curr_obj = getattr(self, attribute)
+            if attribute in ("_act_dict", "_slot_dict", "_value_dict"):
+                state[attribute] = dict(curr_obj)
+            elif attribute == "_filler":
+                state[attribute] = tuple(curr_obj)
+            else:
+                state[attribute] = curr_obj
+        with open(os.path.join(filepath, "_save_state.yaml"), 'w') as state_file:
+            state = omegaconf.OmegaConf.create(state)
+            omegaconf.OmegaConf.save(state, state_file)
+        if tgz:
+            with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
+                out_file.add(filepath, arcname=os.path.basename(filepath))
+
+    @classmethod
+    def load_from_dir(cls, filepath):
+        with open(os.path.join(filepath, '__class__.__name__'), 'r') as class_file:
+            assert class_file.read().strip() == cls.__name__
+            new_instance = cls([])
+            state = omegaconf.OmegaConf.load(os.path.join(filepath, "_save_state.yaml"))
+            for attribute in state:
+                setattr(new_instance, attribute, state[attribute])
+            new_instance._act_dict = bidict.OrderedBidict(new_instance._act_dict)
+            new_instance._slot_dict = bidict.OrderedBidict(new_instance._slot_dict)
+            new_instance._value_dict = bidict.OrderedBidict(new_instance._value_dict)
+            new_instance._filler = set(new_instance._filler)
+            return new_instance
 
 class IntegralInformVocabulary(IntegralDialogueActVocabulary):
+    STATE_ATTRIBUTES = ("_act_dict", "_slot_dict", "_value_dict", "_filler", "_max_index")
     def __init__(self, dataset: Iterable[Dict[str, str]], multivalued_slots=False) -> None:
         """
         Embeddings for 'inform' dialogue acts with a collection of key-value pairs where each slot or value token
@@ -233,7 +270,7 @@ class IntegralInformVocabulary(IntegralDialogueActVocabulary):
 
 
 class TokenVocabulary(object):
-    STATE_ATTRIBUTES = ("_token2int", "_max_index")
+    STATE_ATTRIBUTES = ("_token2int", "_filler", "_max_index")
 
     def __init__(self, dataset: Iterable[Iterable[str]]) -> None:
         """
@@ -266,6 +303,8 @@ class TokenVocabulary(object):
             curr_obj = getattr(self, attribute)
             if attribute == "_token2int":
                 state[attribute] = dict(curr_obj)
+            elif attribute == "_filler":
+                state[attribute] = tuple(curr_obj)
             else:
                 state[attribute] = curr_obj
         with open(os.path.join(filepath, "_save_state.yaml"), 'w') as state_file:
@@ -284,6 +323,7 @@ class TokenVocabulary(object):
             for attribute in state:
                 setattr(new_instance, attribute, state[attribute])
             new_instance._token2int = bidict.OrderedBidict(new_instance._token2int)
+            new_instance._filler = set(new_instance._filler)
             return new_instance
 
     def __dir__(self):
