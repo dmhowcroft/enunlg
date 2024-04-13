@@ -82,10 +82,10 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
             for index, (enc_emb, dec_emb) in tqdm(enumerate(pairs, start=1)):
                 loss = self.model.train_step(enc_emb, dec_emb, self.optimizer, self.loss)
                 self.log_training_loss(float(loss), epoch * len(pairs) + index)
-                self.log_parameter_gradients(epoch * len(pairs) + index)
 
                 loss_this_interval += loss
                 if index % record_interval == 0:
+                    self.log_parameter_gradients(epoch * len(pairs) + index)
                     avg_loss = loss_this_interval / record_interval
                     loss_this_interval = 0
                     logger.info("------------------------------------")
