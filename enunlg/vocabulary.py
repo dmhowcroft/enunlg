@@ -105,6 +105,8 @@ class IntegralRDFVocabulary(object):
 
 
 class IntegralDialogueActVocabulary(object):
+    STATE_ATTRIBUTES = ("_act_dict", "_slot_dict", "_value_dict", "_filler", "_max_index")
+
     def __init__(self, dataset: Iterable[Dict[str, str]]) -> None:
         """
         Embeddings for a set of dialogue acts such that each token receives a different integral value for each position it appears in.
@@ -176,8 +178,8 @@ class IntegralDialogueActVocabulary(object):
             new_instance._filler = set(new_instance._filler)
             return new_instance
 
+
 class IntegralInformVocabulary(IntegralDialogueActVocabulary):
-    STATE_ATTRIBUTES = ("_act_dict", "_slot_dict", "_value_dict", "_filler", "_max_index")
     def __init__(self, dataset: Iterable[Dict[str, str]], multivalued_slots=False) -> None:
         """
         Embeddings for 'inform' dialogue acts with a collection of key-value pairs where each slot or value token

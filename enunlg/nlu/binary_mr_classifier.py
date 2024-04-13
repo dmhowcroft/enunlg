@@ -2,7 +2,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import logging
-import os
 import tarfile
 import tempfile
 
@@ -73,23 +72,23 @@ class TGenSemClassifier(torch.nn.Module):
             return self.forward(text_ints)
 
     def _save_classname_to_dir(self, directory_path):
-        with open(os.path.join(directory_path, "__class__.__name__"), 'w') as class_file:
+        with (Path(directory_path) / "__class__.__name__").open('w') as class_file:
             class_file.write(self.__class__.__name__)
 
     def save(self, filepath, tgz=True):
-        os.mkdir(filepath)
+        Path(filepath).mkdir()
         self._save_classname_to_dir(filepath)
-        with open(f"{filepath}/_state_dict.pt", 'wb') as state_file:
+        with (Path(filepath) / "_state_dict.pt").open('wb') as state_file:
             torch.save(self.state_dict(), state_file)
-        with open(f"{filepath}/model_config.yaml", 'w') as config_file:
+        with (Path(filepath) / "model_config.yaml").open('w') as config_file:
             omegaconf.OmegaConf.save(self.config, config_file)
-        with open(f"{filepath}/_init_args.yaml", 'w') as init_args_file:
+        with (Path(filepath) / "_init_args.yaml").open('w') as init_args_file:
             omegaconf.OmegaConf.save({'text_vocab_size': self.text_vocab_size,
                                       'bitvector_encoder_dims': self.bitvector_encoder_dims},
                                      init_args_file)
         if tgz:
             with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
-                out_file.add(filepath, arcname=os.path.basename(filepath))
+                out_file.add(filepath, arcname=Path(filepath).parent)
 
 
     @classmethod

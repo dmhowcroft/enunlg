@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Tuple
 
 import tarfile
 import tempfile
@@ -27,17 +27,17 @@ class TGenGenerator(object):
         self.model = enunlg.encdec.tgen.TGenEncDec(self.input_vocab.size, self.output_vocab.size, model_config=model_config)
 
     @property
-    def model_config(self):
+    def model_config(self) -> omegaconf.DictConfig:
         return self.model.config
 
     def predict(self, mr):
         return self.model.generate(mr)
 
-    def _save_classname_to_dir(self, directory_path):
+    def _save_classname_to_dir(self, directory_path) -> None:
         with (Path(directory_path) / "__class__.__name__").open('w') as class_file:
             class_file.write(self.__class__.__name__)
 
-    def save(self, filepath, tgz=True):
+    def save(self, filepath, tgz=True) -> None:
         Path(filepath).mkdir()
         self._save_classname_to_dir(filepath)
         state = {}
@@ -58,7 +58,7 @@ class TGenGenerator(object):
                 out_file.add(filepath, arcname=Path(filepath).parent)
 
     @classmethod
-    def load(cls, filepath):
+    def load(cls, filepath) -> "TGenGenerator":
         if tarfile.is_tarfile(filepath):
             with tarfile.open(filepath, 'r') as generator_tarball:
                 tmp_dir = tempfile.mkdtemp()
@@ -82,7 +82,7 @@ class TGenGenerator(object):
                 new_generator.vocabularies = vocabs
                 return new_generator
 
-    def prep_embeddings(self, corpus, max_input_length_in_kv_pairs: int):
+    def prep_embeddings(self, corpus, max_input_length_in_kv_pairs: int) -> Tuple[List[torch.Tensor], List[torch.Tensor]]:
         input_embeddings = [torch.tensor(self.input_vocab.get_ints_with_padding(mr, max_input_length_in_kv_pairs), dtype=torch.long)
                             for mr, _ in corpus]
         output_embeddings = [torch.tensor(self.output_vocab.get_ints(text.strip().split()), dtype=torch.long)

@@ -1,3 +1,5 @@
+from typing import TYPE_CHECKING
+
 import collections
 import logging
 import random
@@ -6,10 +8,13 @@ import torch
 
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from enunlg.data_management.webnlg import RDFTriple, RDFTripleList
+
 RegexRule = collections.namedtuple('RegexRule', ("match_expression", "replacement_expression"))
 
 
-def count_parameters(model, log_table=True, print_table=False):
+def count_parameters(model, log_table: bool = True, print_table: bool = False) -> int:
     """
     Based on https://stackoverflow.com/questions/49201236/check-the-total-number-of-parameters-in-a-pytorch-model,
     forwarded to me by Jonas Groschwitz
@@ -24,8 +29,8 @@ def count_parameters(model, log_table=True, print_table=False):
         table.add_row([name, params])
         total_params += params
     if log_table:
-        logging.info(table)
-        logging.info(f"Total Trainable Params: {total_params}")
+        logger.info(table)
+        logger.info(f"Total Trainable Params: {total_params}")
     if print_table:
         print(table)
         print(f"Total Trainable Params: {total_params}")
@@ -35,12 +40,12 @@ def count_parameters(model, log_table=True, print_table=False):
 def log_list_of_tensors_sizes(list_of_tensors, level=logging.DEBUG) -> None:
     logging.log(level, f"{len(list_of_tensors)=}")
     for task in list_of_tensors:
-        logging.log(level, f"{task.size()}")
+        logger.log(level, f"{task.size()}")
 
 
 def log_sequence(seq, indent="") -> None:
     for element in seq:
-        logging.info(f"{indent}{element}")
+        logger.info(f"{indent}{element}")
 
 
 def set_random_seeds(seed) -> None:
@@ -48,7 +53,7 @@ def set_random_seeds(seed) -> None:
     torch.manual_seed(seed)
 
 
-def mr_to_rdf(mr):
+def mr_to_rdf(mr) -> "RDFTripleList":
     from enunlg.data_management.webnlg import RDFTriple, RDFTripleList
     tripleset = []
     agent = mr['name']

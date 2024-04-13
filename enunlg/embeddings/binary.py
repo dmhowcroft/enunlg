@@ -22,6 +22,8 @@ class DialogueActEmbeddings(object):
         self._collapse_values = collapse_values
         self._dimensionality = None
         self._acts: Set[str] = set()
+        # TODO check how to specify bidict.OrderedBidict as the type with restrictions on its contents
+        # We need to update this hint bc self.acts (and .slot_value_pairs) both need to have .inv to work
         self.acts: MutableMapping[str, int] = bidict.OrderedBidict()
         self._slot_value_pairs: Set[Tuple[str, Optional[str]]] = set()
         self.slot_value_pairs: MutableMapping[Tuple[str, Optional[str]], int] = bidict.OrderedBidict()
