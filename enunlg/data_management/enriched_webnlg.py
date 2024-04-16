@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections.abc import MutableMapping
+from pathlib import Path
 from typing import Iterable, List, Optional, Tuple, Union
 
 import difflib
@@ -258,23 +259,18 @@ def raw_to_usable(raw_corpus) -> List[EnrichedWebNLGItem]:
     return out_corpus
 
 
-def load_enriched_webnlg(splits: Optional[Iterable[str]] = None, enriched_webnlg_config: Optional[omegaconf.DictConfig] = None) -> EnrichedWebNLGCorpus:
+def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] = None, splits: Optional[Iterable[str]] = None) -> EnrichedWebNLGCorpus:
     """
+    :param enriched_webnlg_config: an omegaconf.DictConfig like object containing the basic
+                                   information about the e2e corpus to be used
     :param splits: which splits to load
-    :param enriched_webnlg_config: a SlotValueMR or omegaconf.DictConfig like object containing the basic
-                                information about the e2e corpus to be used
-    :return: the corpus of MR-text pairs with metadata
+    :return: the corpus of RDF-text pairs with metadata
     """
-    if enriched_webnlg_config is None:
-        enriched_e2e_config = ENRICHED_WEBNLG_CONFIG
-    corpus_name = "Enriched WebNLG Corpus (v1.6)"
-    default_splits = WEBNLG_SPLIT_DIRS
-    data_directory = enriched_e2e_config.ENRICHED_WEBNLG_DIR
-    if splits is None:
-        splits = default_splits
-    elif not set(splits).issubset(default_splits):
+    default_splits = set(enriched_webnlg_config.splits.keys())
+    if not set(splits).issubset(default_splits):
         message = f"`splits` can only contain a subset of {default_splits}. Found {splits}."
         raise ValueError(message)
+    data_directory = Path(__file__).parent / enriched_webnlg_config.load_dir
     fns = []
     for split in splits:
         logger.info(split)
@@ -282,7 +278,7 @@ def load_enriched_webnlg(splits: Optional[Iterable[str]] = None, enriched_webnlg
             fns.extend([os.path.join(data_directory, split, tuple_dir, fn) for fn in os.listdir(os.path.join(data_directory, split, tuple_dir))])
 
     corpus: EnrichedWebNLGCorpusRaw = EnrichedWebNLGCorpusRaw(filename_or_list=fns)
-    corpus.metadata = {'name': corpus_name,
+    corpus.metadata = {'name': enriched_webnlg_config.display_name,
                        'splits': splits,
                        'directory': data_directory,
                        'raw': True}
@@ -295,7 +291,7 @@ def load_enriched_webnlg(splits: Optional[Iterable[str]] = None, enriched_webnlg
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
     corpus: EnrichedWebNLGCorpus = EnrichedWebNLGCorpus(raw_to_usable(corpus))
-    corpus.metadata = {'name': corpus_name,
+    corpus.metadata = {'name': enriched_webnlg_config.display_name,
                        'splits': splits,
                        'directory': data_directory,
                        'raw': False}

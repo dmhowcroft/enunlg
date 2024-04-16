@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_DATASETS = {"e2e", "e2e-cleaned", "e2e-enriched", "enriched-webnlg", "sfx-restaurant"}
+SUPPORTED_DATASETS = {"e2e", "e2e-cleaned", "e2e-enriched", "webnlg-enriched", "sfx-restaurant"}
 
 
 def load_data_from_config(data_config: "omegaconf.DictConfig", splits):
@@ -43,9 +43,9 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits):
     elif data_config.corpus.name == 'e2e-enriched':
         logger.info("Loading Enriched E2E Challenge Data...")
         return enunlg.data_management.enriched_e2e.load_enriched_e2e(data_config.corpus, splits)
-    elif data_config.corpus.name == 'enriched-webnlg':
+    elif data_config.corpus.name == 'webnlg-enriched':
         logger.info("Loading Enriched WebNLG (v1.6) Data...")
-        return enunlg.data_management.enriched_webnlg.load_enriched_webnlg(data_config.corpus.splits)
+        return enunlg.data_management.enriched_webnlg.load_enriched_webnlg(data_config.corpus, splits)
     elif data_config.corpus.name == 'sfx-restaurant':
         logger.info("Loading SFX Restaurant data...")
         return enunlg.data_management.cued.load_sfx_restaurant(data_config.corpus.splits)
