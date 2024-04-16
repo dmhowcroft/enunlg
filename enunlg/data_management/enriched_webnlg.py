@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Tuple, Union
 
 import difflib
+import json
 import logging
 import os
 
@@ -97,6 +98,7 @@ class EnrichedWebNLGCorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
 class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
     def __init__(self, annotation_layers):
         super().__init__(annotation_layers)
+        self.reg_dict = {}
 
 
 class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
@@ -249,17 +251,21 @@ def raw_to_usable(raw_corpus) -> List[EnrichedWebNLGItem]:
             reg_string = extract_reg_from_lex(raw_output, lex.template, lexicalization)
             if reg_string is None:
                 continue
-            out_corpus.append(EnrichedWebNLGItem({'raw_input': raw_input,
+            new_item = EnrichedWebNLGItem({'raw_input': raw_input,
                                                   'selected_input': selected_input,
                                                   'ordered_input': ordered_input,
                                                   'sentence_segmented_input': sentence_segmented_input,
                                                   'lexicalisation': lexicalization,
                                                   'referring_expressions': reg_string,
-                                                  'raw_output': raw_output}))
+                                                  'raw_output': raw_output})
+            new_item.reg_dict = extract_reg_from_template_and_text(raw_output, lex.template)
+            out_corpus.append(new_item)
     return out_corpus
 
 
-def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] = None, splits: Optional[Iterable[str]] = None) -> EnrichedWebNLGCorpus:
+def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] = None,
+                         splits: Optional[Iterable[str]] = None,
+                         sem_class_delex: Optional[str] = None) -> EnrichedWebNLGCorpus:
     """
     :param enriched_webnlg_config: an omegaconf.DictConfig like object containing the basic
                                    information about the e2e corpus to be used
