@@ -180,6 +180,7 @@ def extract_reg(entry: EnrichedWebNLGEntry) -> List[str]:
 
 
 def extract_reg_from_lex(text, template, lex):
+    # TODO rewrite this to use the entry.lex.references and a sem_class_json file
     if None in (text, template, lex):
         print(text)
         print(template)
@@ -235,6 +236,11 @@ def extract_raw_output(entry: EnrichedWebNLGEntry) -> List[str]:
     return [target.text for target in entry.lex]
 
 
+def extract_references(entry_lex_references):
+    for reference in entry_lex_references:
+        print(reference)
+
+
 def raw_to_usable(raw_corpus) -> List[EnrichedWebNLGItem]:
     """This will drop any entries which contain 'None' for any annotation layers"""
     out_corpus = []
@@ -259,6 +265,7 @@ def raw_to_usable(raw_corpus) -> List[EnrichedWebNLGItem]:
                                                   'referring_expressions': reg_string,
                                                   'raw_output': raw_output})
             new_item.reg_dict = extract_reg_from_template_and_text(raw_output, lex.template)
+            new_item.references = extract_references(lex.references.reference)
             out_corpus.append(new_item)
     return out_corpus
 
