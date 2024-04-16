@@ -199,7 +199,7 @@ def extract_raw_output(entry: EnrichedE2EEntry) -> List[str]:
 
 def load_enriched_e2e(enriched_e2e_config: omegaconf.DictConfig, splits: Optional[Iterable[str]] = None) -> EnrichedE2ECorpus:
     """
-    :param enriched_e2e_config: a SlotValueMR or omegaconf.DictConfig like object containing the basic
+    :param enriched_e2e_config: omegaconf.DictConfig like object containing the basic
                                 information about the e2e corpus to be used
     :param splits: which splits to load
     :return: the corpus of MR-text pairs with metadata
@@ -289,3 +289,16 @@ LINEARIZATION_FUNCTIONS = {'raw_input': linearize_slot_value_mr,
                            'lexicalisation': lambda lex_string: lex_string.strip().split(),
                            'referring_expressions': lambda reg_string: reg_string.strip().split(),
                            'raw_output': lambda text: text.strip().split()}
+
+
+def validate_enriched_e2e(corpus) -> None:
+    entries_to_drop = []
+    for idx, entry in enumerate(corpus):
+        # Some of the EnrichedE2E entries have incorrect semantics.
+        # Checking for the restaurant name in the input selections is the fastest way to check.
+        if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
+            pass
+        else:
+            entries_to_drop.append(idx)
+    for idx in reversed(entries_to_drop):
+        corpus.pop(idx)

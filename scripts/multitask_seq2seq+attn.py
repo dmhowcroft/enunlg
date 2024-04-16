@@ -11,6 +11,7 @@ from enunlg.convenience.binary_mr_classifier import FullBinaryMRClassifier
 from enunlg.data_management.loader import load_data_from_config
 from enunlg.generators.multitask_seq2seq import MultitaskSeq2SeqGenerator
 
+import enunlg.data_management.enriched_e2e
 import enunlg.data_management.enriched_webnlg
 import enunlg.data_management.pipelinecorpus
 import enunlg.encdec.multitask_seq2seq
@@ -20,33 +21,6 @@ import enunlg.util
 import enunlg.vocabulary
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
-
-
-def validate_enriched_e2e(corpus) -> None:
-    entries_to_drop = []
-    for idx, entry in enumerate(corpus):
-        # Some of the EnrichedE2E entries have incorrect semantics.
-        # Checking for the restaurant name in the input selections is the fastest way to check.
-        if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
-            pass
-        else:
-            entries_to_drop.append(idx)
-    for idx in reversed(entries_to_drop):
-        corpus.pop(idx)
-
-
-def translate_e2e_to_rdf(corpus) -> None:
-    for entry in corpus:
-        agent = entry.raw_input['name']
-        entry.raw_input = enunlg.util.mr_to_rdf(entry.raw_input)
-        entry.selected_input = enunlg.util.mr_to_rdf(entry.selected_input)
-        entry.ordered_input = enunlg.util.mr_to_rdf(entry.ordered_input)
-        sentence_mrs = []
-        for sent_mr in entry.sentence_segmented_input:
-            sent_mr_dict = dict(sent_mr)
-            sent_mr_dict['name'] = agent
-            sentence_mrs.append(enunlg.util.mr_to_rdf(sent_mr_dict))
-        entry.sentence_segmented_input = sentence_mrs
 
 
 def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
@@ -60,10 +34,10 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     print("____________")
 
     # Drop entries that are missing data
-    validate_enriched_e2e(corpus)
+    enunlg.data_management.enriched_e2e.validate_enriched_e2e(corpus)
 
     if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
-        translate_e2e_to_rdf(corpus)
+        enunlg.util.translate_e2e_to_rdf(corpus)
 
     if config.data.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
@@ -109,11 +83,11 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
     print("____________")
 
     # Drop entries that are missing data
-    validate_enriched_e2e(corpus)
+    enunlg.data_management.enriched_e2e.validate_enriched_e2e(corpus)
     multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr in corpus.items_by_layer('raw_input')]
 
     if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
-        translate_e2e_to_rdf(corpus)
+        enunlg.util.translate_e2e_to_rdf(corpus)
 
     if config.data.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
