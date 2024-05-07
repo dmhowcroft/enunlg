@@ -200,6 +200,7 @@ def extract_refs_from_xsdata_rep(lex_references):
 
 
 def extract_reg_from_lex(text, template, lex):
+    # TODO rewrite this to use the entry.lex.references and a sem_class_json file
     if None in (text, template, lex):
         print(text)
         print(template)
