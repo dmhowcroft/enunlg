@@ -179,6 +179,26 @@ def extract_reg(entry: EnrichedWebNLGEntry) -> List[str]:
     return reg_lexes
 
 
+class WebNLGReference(object):
+    def __init__(self, entity, seq_loc, orig_delex_tag, ref_type, form):
+        self.entity = str(entity)
+        self.seq_loc = seq_loc
+        self.orig_delex_tag = orig_delex_tag
+        self.ref_type = ref_type
+        self.form = form
+
+class WebNLGReferences(object):
+    def __init__(self, ref_list):
+        self.sequence = ref_list
+        self.lookup_by_entity = defaultdict(list)
+        for index, ref in enumerate(self.sequence):
+            self.lookup_by_entity[ref.entity].append(index)
+
+
+def extract_refs_from_xsdata_rep(lex_references):
+    return WebNLGReferences([WebNLGReference(ref.entity, ref.number, ref.tag, ref.type_value, ref.value) for ref in lex_references])
+
+
 def extract_reg_from_lex(text, template, lex):
     if None in (text, template, lex):
         print(text)
@@ -259,6 +279,7 @@ def raw_to_usable(raw_corpus) -> List[EnrichedWebNLGItem]:
                                                   'referring_expressions': reg_string,
                                                   'raw_output': raw_output})
             new_item.reg_dict = extract_reg_from_template_and_text(raw_output, lex.template)
+            new_item.references = extract_refs_from_xsdata_rep(lex.references.reference)
             out_corpus.append(new_item)
     return out_corpus
 

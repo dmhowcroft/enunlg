@@ -26,19 +26,31 @@ def delexicalise_with_sem_classes(pipeline_corpus: "enunlg.data_management.enric
                                   sem_class_json) -> "enunlg.data_management.enriched_webnlg.EnrichedWebNLGCorpus":
     with Path(sem_class_json).open('r') as json_file:
         sem_class_data = json.load(json_file)
+    sem_class_lower = {}
+    for k in sem_class_data:
+        sem_class_lower[k.lower()] = sem_class_data[k]
+    sem_class_data = sem_class_lower
+    # print(sem_class_data)
 
     present = 0
     absent = 0
     for entry in pipeline_corpus:
         # check if entities are in sem_class_data
-        print(entry.reg_dict)
-        for delex_key in entry.reg_dict:
-            values = entry.reg_dict[delex_key]
-            # loop over values until we find one in sem_class_data
+        # print
+        for entity in entry.references.lookup_by_entity.keys():
+            if entity.lower() in sem_class_data:
+                dbpedia_class = sem_class_data[entity.lower()]["class_dbp"]
+                if dbpedia_class not in ("", "—"):
+                    print(dbpedia_class)
+                    present +=1
+                else:
+                    absent += 1
+            else:
+                absent += 1
             # if we found one, create a new dict entry mapping the old class to the new one
             # incorporate tehse changes into extract_reg_from_lex so so we can call the new
             #   method in raw_to_usable to get what we need
-    # print(present / (present+absent))
+    print(present / (present+absent))
     return pipeline_corpus
 
 
