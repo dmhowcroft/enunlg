@@ -45,7 +45,7 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits, sem_class
         return enunlg.data_management.enriched_e2e.load_enriched_e2e(data_config.corpus, splits)
     elif data_config.corpus.name == 'webnlg-enriched':
         logger.info("Loading Enriched WebNLG (v1.6) Data...")
-        return enunlg.data_management.enriched_webnlg.load_enriched_webnlg(data_config.corpus, splits, sem_class_delex)
+        return enunlg.data_management.enriched_webnlg.load_enriched_webnlg(data_config.corpus, splits, undo_enriched_webnlg_delex=False)
     elif data_config.corpus.name == 'sfx-restaurant':
         logger.info("Loading SFX Restaurant data...")
         return enunlg.data_management.cued.load_sfx_restaurant(data_config.corpus.splits)

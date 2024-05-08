@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections.abc import MutableMapping
+from copy import deepcopy
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple, Union
 
@@ -104,8 +105,10 @@ class EnrichedWebNLGReferences(object):
     def __init__(self, ref_list):
         self.sequence = ref_list
         self.lookup_by_entity = defaultdict(list)
+        self.entity_orig_tag_mapping = {}
         for index, ref in enumerate(self.sequence):
             self.lookup_by_entity[ref.entity].append(index)
+            self.entity_orig_tag_mapping[ref.entity] = ref.orig_delex_tag
 
 
 class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
@@ -116,6 +119,35 @@ class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
         """
         super().__init__(annotation_layers)
         self.references = EnrichedWebNLGReferences([])
+        self._delexicalization_tracking = []
+        self._sem_class_counts = defaultdict(int)
+
+    def delex_reference(self, entity, sem_class):
+        # TODO delexicalisation should only succeed if *all* layers can be delexicalized w.r.t. that entity
+        self._delexicalization_tracking.append((entity, sem_class))
+        sem_class_string = f"__{sem_class}-{self._sem_class_counts[sem_class]}__"
+        print(sem_class_string)
+        for layer_name in self.annotation_layers:
+            layer = self[layer_name]
+            if isinstance(layer, RDFTripleList):
+                layer.delex_reference(entity, sem_class_string)
+            elif isinstance(layer, tuple):
+                if all(isinstance(element, RDFTripleList) for element in layer):
+                    for element in layer:
+                        element.delex_reference(entity, sem_class_string)
+            elif isinstance(layer, str):
+                print(entity.replace("_", " "))
+                self[layer_name] = layer.replace(entity, sem_class_string).replace(entity.replace("_", " "), sem_class_string)
+                self[layer_name] = self[layer_name].replace(self.references.entity_orig_tag_mapping[entity], sem_class_string)
+            else:
+                raise ValueError(f"Unexpected type for this layer: {type(layer)}")
+        print(self)
+        self._sem_class_counts[sem_class] += 1
+
+    def undo_enriched_webnlg_delex(self):
+        for reference in self.references.sequence:
+            # print(f"{reference.orig_delex_tag=}")
+            self['lexicalisation'] = self['lexicalisation'].replace(reference.orig_delex_tag, str(reference.form), 1)
 
 
 class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
@@ -148,10 +180,13 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                 lexicalization = lex.lexicalization
                 raw_output = lex.text
                 # This will drop any entries which contain 'None' for any annotation layers
-                if None in [raw_input, selected_input, ordered_input, sentence_segmented_input, raw_output,
-                            lex.template, lexicalization]:
+                if None in [raw_output, lex.template, lexicalization]:
                     continue
-                new_item = EnrichedWebNLGItem({'raw_input': raw_input,
+                if any([None in x for x in [raw_input, selected_input, ordered_input, sentence_segmented_input]]):
+                    continue
+                if any([len(x) == 0 for x in [raw_input, selected_input, ordered_input, sentence_segmented_input]]):
+                    continue
+                new_item = EnrichedWebNLGItem({'raw_input': deepcopy(raw_input),
                                                'selected_input': selected_input,
                                                'ordered_input': ordered_input,
                                                'sentence_segmented_input': sentence_segmented_input,
@@ -269,7 +304,7 @@ def extract_raw_output(entry: EnrichedWebNLGEntry) -> List[str]:
 
 def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] = None,
                          splits: Optional[Iterable[str]] = None,
-                         sem_class_delex: Optional[str] = None) -> EnrichedWebNLGCorpus:
+                         undo_enriched_webnlg_delex: bool = True) -> EnrichedWebNLGCorpus:
     """
     :param enriched_webnlg_config: an omegaconf.DictConfig like object containing the basic
                                    information about the e2e corpus to be used
@@ -306,11 +341,15 @@ def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] 
                        'directory': data_directory,
                        'raw': False}
     logger.info(f"Corpus contains {len(corpus)} entries.")
+
+    if undo_enriched_webnlg_delex:
+        for entry in corpus:
+            entry.undo_enriched_webnlg_delex()
     return corpus
 
 
 def sanitize_subjects_and_objects(subject_or_object: str) -> List[str]:
-    out_string = subject_or_object.replace("_", " ").replace(",", " , ")
+    out_string = subject_or_object.replace(",", " , ")
     out_tokens = out_string.split()
     # omit empty strings caused by multiple spaces in a row
     return [token for token in out_tokens if token]
@@ -324,11 +363,14 @@ snake_case_regex = regex.compile('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))')
 
 
 def tokenize_slots_and_values(value):
-    out_string = snake_case_regex.sub(r'_\1', value)
-    out_string = out_string.replace("_", " ").replace(",", " , ")
-    out_tokens = out_string.split()
-    # omit empty strings caused by multiple spaces in a row
-    return [token for token in out_tokens if token]
+    if value.startswith("__") and value.endswith("__"):
+        return [value]
+    else:
+        out_string = snake_case_regex.sub(r'_\1', value)
+        out_string = out_string.replace("_", " ").replace(",", " , ")
+        out_tokens = out_string.split()
+        # omit empty strings caused by multiple spaces in a row
+        return [token for token in out_tokens if token]
 
 
 def linearize_rdf_triple_list(rdf_triple_list: Union[List[RDFTriple], RDFTripleList]) -> List[str]:

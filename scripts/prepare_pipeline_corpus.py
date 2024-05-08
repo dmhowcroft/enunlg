@@ -36,12 +36,16 @@ def delexicalise_with_sem_classes(pipeline_corpus: "enunlg.data_management.enric
     absent = 0
     for entry in pipeline_corpus:
         # check if entities are in sem_class_data
-        # print
-        for entity in entry.references.lookup_by_entity.keys():
+        print("-=-=-=-=-=-=-=-==-")
+        print(entry)
+        for reference in entry.references.sequence:
+            entity = reference.entity
             if entity.lower() in sem_class_data:
                 dbpedia_class = sem_class_data[entity.lower()]["class_dbp"]
                 if dbpedia_class not in ("", "—"):
-                    print(dbpedia_class)
+                    # print(entry)
+                    entry.delex_reference(entity, dbpedia_class)
+                    # print(entry)
                     present +=1
                 else:
                     absent += 1
@@ -55,19 +59,19 @@ def delexicalise_with_sem_classes(pipeline_corpus: "enunlg.data_management.enric
 
 
 
-def prep_corpus(tmp_config) -> None:
-    pipeline_corpus = load_data_from_config(tmp_config, splits=["dev"])
+def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipelinecorpus.TextPipelineCorpus:
+    pipeline_corpus = load_data_from_config(config, splits=["dev"])
 
-    if tmp_config.corpus.name == "e2e-enriched":
+    if config.corpus.name == "e2e-enriched":
         enunlg.data_management.enriched_e2e.validate_enriched_e2e(pipeline_corpus)
 
     json_filepath = Path("datasets/raw/2024-04-12_mille_webnlg_dbp-wkd-classes.json")
     pipeline_corpus = delexicalise_with_sem_classes(pipeline_corpus, json_filepath)
 
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
-    if tmp_config.input_mode == "rdf":
+    if config.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
-    elif tmp_config.input_mode == "e2e":
+    elif config.input_mode == "e2e":
         linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
     return enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(pipeline_corpus, mapping_functions=linearization_functions)
 

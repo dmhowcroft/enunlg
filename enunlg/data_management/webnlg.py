@@ -32,6 +32,10 @@ class RDFTriple(object):
         subj, pred, obj = triple.split(" | ")
         return RDFTriple(subj, pred, obj)
 
+    def delex_reference(self, entity, sem_class):
+        self.subject = self.subject.replace(entity, sem_class)
+        self.object = self.object.replace(entity, sem_class)
+
 
 class RDFTripleSet(set):
     def __init__(self, seq):
@@ -41,6 +45,11 @@ class RDFTripleSet(set):
 class RDFTripleList(list):
     def __init__(self, seq):
         super().__init__(seq)
+
+    def delex_reference(self, entity, sem_class):
+        for triple in self:
+            # print(triple)
+            triple.delex_reference(entity, sem_class)
 
 
 class WebNLGLex(object):
