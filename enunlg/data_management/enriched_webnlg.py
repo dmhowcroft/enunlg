@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Tuple, Union
 
 import difflib
-import json
 import logging
 import os
 
@@ -50,8 +49,6 @@ def extract_reg_from_template_and_text(text: str, template: str, print_diff: boo
         elif line.startswith('+'):
             token = line.split()[1]
             curr_key.append(token)
-
-
         else:
             if curr_value:
                 values.append(" ".join(curr_value))
@@ -95,15 +92,74 @@ class EnrichedWebNLGCorpusRaw(enunlg.data_management.iocorpus.IOCorpus):
         self.extend(entries_object.entry)
 
 
+class EnrichedWebNLGReference(object):
+    def __init__(self, entity, seq_loc, orig_delex_tag, ref_type, form):
+        self.entity = str(entity)
+        self.seq_loc = seq_loc
+        self.orig_delex_tag = orig_delex_tag
+        self.ref_type = ref_type
+        self.form = form
+
+class EnrichedWebNLGReferences(object):
+    def __init__(self, ref_list):
+        self.sequence = ref_list
+        self.lookup_by_entity = defaultdict(list)
+        for index, ref in enumerate(self.sequence):
+            self.lookup_by_entity[ref.entity].append(index)
+
+
 class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
     def __init__(self, annotation_layers):
+        """
+        An EnrichedWebNLGItem contains `annotation_layers` corresponding do different stages of realisation
+        as well as `references` encoding the references provided the Enriched WebNLG dataset.
+        """
         super().__init__(annotation_layers)
-        self.reg_dict = {}
+        self.references = EnrichedWebNLGReferences([])
 
 
 class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
     def __init__(self, seq: List[EnrichedWebNLGItem], metadata=None):
         super(EnrichedWebNLGCorpus, self).__init__(seq, metadata)
+
+    @classmethod
+    def from_raw_corpus(cls, raw_corpus: EnrichedWebNLGCorpusRaw) -> "EnrichedWebNLGCorpus":
+        """"""
+        out_corpus = []
+        for entry in raw_corpus:
+            # One input with multiple 'lex' entries
+            raw_input = extract_raw_input(entry)
+            # Extract the 'layers' from this representation.
+            # NB: switched to in-lining everything so it's all in one place and we don't have
+            # to keep track of a bunch of different functions. Data munging is messy no matter where and how we do it.
+            for lex in entry.lex:
+                sentence_grouped_triples = []
+                selected_ordered_triples = []
+                for sentence in lex.sortedtripleset.sentence:
+                    sentence_triples = []
+                    for sortedtriple in sentence.striple:
+                        this_triple = RDFTriple.from_string(sortedtriple)
+                        selected_ordered_triples.append(this_triple)
+                        sentence_triples.append(this_triple)
+                    sentence_grouped_triples.append(tuple(sentence_triples))
+                selected_input = RDFTripleList(selected_ordered_triples)
+                ordered_input = RDFTripleList(selected_ordered_triples)
+                sentence_segmented_input = tuple(sentence_grouped_triples)
+                lexicalization = lex.lexicalization
+                raw_output = lex.text
+                # This will drop any entries which contain 'None' for any annotation layers
+                if None in [raw_input, selected_input, ordered_input, sentence_segmented_input, raw_output,
+                            lex.template, lexicalization]:
+                    continue
+                new_item = EnrichedWebNLGItem({'raw_input': raw_input,
+                                               'selected_input': selected_input,
+                                               'ordered_input': ordered_input,
+                                               'sentence_segmented_input': sentence_segmented_input,
+                                               'lexicalisation': lexicalization,
+                                               'raw_output': raw_output})
+                new_item.references = extract_refs_from_xsdata_rep(lex.references.reference)
+                out_corpus.append(new_item)
+        return cls(out_corpus)
 
 
 def extract_raw_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
@@ -111,10 +167,6 @@ def extract_raw_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
     for tripleset in entry.modifiedtripleset.mtriple:
         triplelist.append(RDFTriple.from_string(tripleset))
     return triplelist
-
-
-def extract_selected_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
-    return [extract_selected_input_from_lex(lex) for lex in entry.lex]
 
 
 def extract_selected_input_from_lex(lex) -> RDFTripleList:
@@ -125,34 +177,9 @@ def extract_selected_input_from_lex(lex) -> RDFTripleList:
     return RDFTripleList(triplelist)
 
 
-def extract_ordered_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
-    targets = []
-    for lex in entry.lex:
-        triplelist = []
-        for sentence in lex.sortedtripleset.sentence:
-            for sortedtriple in sentence.striple:
-                triplelist.append(RDFTriple.from_string(sortedtriple))
-        targets.append(RDFTripleList(triplelist))
-    return targets
-
-
 def extract_ordered_input_from_lex(lex) -> RDFTripleList:
-    triplelist = []
-    for sentence in lex.sortedtripleset.sentence:
-        for sortedtriple in sentence.striple:
-            triplelist.append(RDFTriple.from_string(sortedtriple))
-    return RDFTripleList(triplelist)
-
-
-def extract_sentence_segmented_input(entry: EnrichedWebNLGEntry) -> List[Tuple[Tuple[RDFTriple]]]:
-    targets = []
-    for lex in entry.lex:
-        selected_inputs = []
-        for sentence in lex.sortedtripleset.sentence:
-            triplelist = [RDFTriple.from_string(sortedtriple) for sortedtriple in sentence.striple]
-            selected_inputs.append(tuple(triplelist))
-        targets.append(tuple(selected_inputs))
-    return targets
+    # WebNLG presents selected triples in their order of realisation.
+    return extract_selected_input_from_lex(lex)
 
 
 def extract_sentence_segmented_input_from_lex(lex) -> Tuple[Tuple[RDFTriple]]:
@@ -179,24 +206,8 @@ def extract_reg(entry: EnrichedWebNLGEntry) -> List[str]:
     return reg_lexes
 
 
-class WebNLGReference(object):
-    def __init__(self, entity, seq_loc, orig_delex_tag, ref_type, form):
-        self.entity = str(entity)
-        self.seq_loc = seq_loc
-        self.orig_delex_tag = orig_delex_tag
-        self.ref_type = ref_type
-        self.form = form
-
-class WebNLGReferences(object):
-    def __init__(self, ref_list):
-        self.sequence = ref_list
-        self.lookup_by_entity = defaultdict(list)
-        for index, ref in enumerate(self.sequence):
-            self.lookup_by_entity[ref.entity].append(index)
-
-
 def extract_refs_from_xsdata_rep(lex_references):
-    return WebNLGReferences([WebNLGReference(ref.entity, ref.number, ref.tag, ref.type_value, ref.value) for ref in lex_references])
+    return EnrichedWebNLGReferences([EnrichedWebNLGReference(ref.entity, ref.number, ref.tag, ref.type_value, ref.value) for ref in lex_references])
 
 
 def extract_reg_from_lex(text, template, lex):
@@ -256,35 +267,6 @@ def extract_raw_output(entry: EnrichedWebNLGEntry) -> List[str]:
     return [target.text for target in entry.lex]
 
 
-def raw_to_usable(raw_corpus) -> List[EnrichedWebNLGItem]:
-    """This will drop any entries which contain 'None' for any annotation layers"""
-    out_corpus = []
-    for entry in raw_corpus:
-        raw_input = extract_raw_input(entry)
-        for lex in entry.lex:
-            selected_input = extract_selected_input_from_lex(lex)
-            ordered_input = extract_ordered_input_from_lex(lex)
-            sentence_segmented_input = extract_sentence_segmented_input_from_lex(lex)
-            lexicalization = lex.lexicalization
-            raw_output = lex.text
-            if None in [raw_input, selected_input, ordered_input, sentence_segmented_input, raw_output, lex.template, lexicalization]:
-                continue
-            reg_string = extract_reg_from_lex(raw_output, lex.template, lexicalization)
-            if reg_string is None:
-                continue
-            new_item = EnrichedWebNLGItem({'raw_input': raw_input,
-                                                  'selected_input': selected_input,
-                                                  'ordered_input': ordered_input,
-                                                  'sentence_segmented_input': sentence_segmented_input,
-                                                  'lexicalisation': lexicalization,
-                                                  'referring_expressions': reg_string,
-                                                  'raw_output': raw_output})
-            new_item.reg_dict = extract_reg_from_template_and_text(raw_output, lex.template)
-            new_item.references = extract_refs_from_xsdata_rep(lex.references.reference)
-            out_corpus.append(new_item)
-    return out_corpus
-
-
 def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] = None,
                          splits: Optional[Iterable[str]] = None,
                          sem_class_delex: Optional[str] = None) -> EnrichedWebNLGCorpus:
@@ -318,7 +300,7 @@ def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] 
             target.text = TGenTokeniser.tokenise(target.text)
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
-    corpus: EnrichedWebNLGCorpus = EnrichedWebNLGCorpus(raw_to_usable(corpus))
+    corpus: EnrichedWebNLGCorpus = EnrichedWebNLGCorpus.from_raw_corpus(corpus)
     corpus.metadata = {'name': enriched_webnlg_config.display_name,
                        'splits': splits,
                        'directory': data_directory,
@@ -336,8 +318,6 @@ def sanitize_subjects_and_objects(subject_or_object: str) -> List[str]:
 
 def sanitize_predicates(predicate: str) -> List[str]:
     return [predicate]
-
-
 
 
 snake_case_regex = regex.compile('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))')
