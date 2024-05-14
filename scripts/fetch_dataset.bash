@@ -73,7 +73,7 @@ function process_dataset {
       cp -rf datasets/raw/webnlg datasets/processed/.
       # Fix errors in corpus annotation
       sed -i -e 's/"BRIDGE-"/"BRIDGE-2"/g' -e 's/ BRIDGE- / BRIDGE-2 /g' datasets/processed/webnlg/data/v1.6/en/dev/3triples/Building.xml
-      sed -i -e 's/\(AGENT\|BRIDGE\|PATIENT\)-\([0-9]\)/__\1_\2__/g' datasets/processed/webnlg/data/v1.6/en/*/*/*.xml;;
+#      sed -i -e 's/\(AGENT\|BRIDGE\|PATIENT\)-\([0-9]\)/__\1_\2__/g' datasets/processed/webnlg/data/v1.6/en/*/*/*.xml;;
   esac
 }
 
