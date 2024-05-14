@@ -127,6 +127,8 @@ class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
         self._delexicalization_tracking.append((entity, sem_class))
         sem_class_string = f"__{sem_class}-{self._sem_class_counts[sem_class]}__"
         print(sem_class_string)
+        orig_tag = self.references.entity_orig_tag_mapping[entity]
+        print(orig_tag)
         for layer_name in self.annotation_layers:
             layer = self[layer_name]
             if isinstance(layer, RDFTripleList):
@@ -136,9 +138,10 @@ class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
                     for element in layer:
                         element.delex_reference(entity, sem_class_string)
             elif isinstance(layer, str):
-                print(entity.replace("_", " "))
-                self[layer_name] = layer.replace(entity, sem_class_string).replace(entity.replace("_", " "), sem_class_string)
-                self[layer_name] = self[layer_name].replace(self.references.entity_orig_tag_mapping[entity], sem_class_string)
+                if layer_name == 'lexicalisation':
+                    self[layer_name] = layer.replace(orig_tag, sem_class_string)
+                else:
+                    self[layer_name] = layer.replace(entity, sem_class_string).replace(entity.replace("_", " "), sem_class_string)
             else:
                 raise ValueError(f"Unexpected type for this layer: {type(layer)}")
         print(self)
