@@ -30,7 +30,7 @@ class RDFTriple(object):
     @staticmethod
     def from_string(triple: str) -> "RDFTriple":
         subj, pred, obj = triple.split(" | ")
-        return RDFTriple(subj, pred, obj)
+        return RDFTriple(subj.strip('"'), pred.strip('"'), obj.strip('"'))
 
     def delex_reference(self, entity, sem_class):
         self.subject = self.subject.replace(entity, sem_class)

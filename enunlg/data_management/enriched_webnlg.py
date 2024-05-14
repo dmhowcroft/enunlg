@@ -245,7 +245,7 @@ def extract_reg(entry: EnrichedWebNLGEntry) -> List[str]:
 
 
 def extract_refs_from_xsdata_rep(lex_references):
-    return EnrichedWebNLGReferences([EnrichedWebNLGReference(ref.entity, ref.number, ref.tag, ref.type_value, ref.value) for ref in lex_references])
+    return EnrichedWebNLGReferences([EnrichedWebNLGReference(str(ref.entity).strip('"'), ref.number, ref.tag, ref.type_value, ref.value) for ref in lex_references])
 
 
 def extract_reg_from_lex(text, template, lex):
