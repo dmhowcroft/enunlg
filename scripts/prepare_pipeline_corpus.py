@@ -1,8 +1,8 @@
 from pathlib import Path
+from typing import Dict
 
 import json
 import logging
-import sys
 
 import omegaconf
 import hydra
@@ -22,41 +22,39 @@ logger = logging.getLogger('enunlg-scripts.prepare_pipeline_corpus')
 SUPPORTED_DATASETS = {"enriched-e2e", "enriched-webnlg"}
 
 
-def delexicalise_with_sem_classes(pipeline_corpus: "enunlg.data_management.enriched_webnlg.EnrichedWebNLGCorpus",
-                                  sem_class_json) -> "enunlg.data_management.enriched_webnlg.EnrichedWebNLGCorpus":
-    with Path(sem_class_json).open('r') as json_file:
+def sem_class_dict_from_mille(json_filepath, sem_class_type: str = 'class_dbp'):
+    with Path(json_filepath).open('r') as json_file:
         sem_class_data = json.load(json_file)
     sem_class_lower = {}
     for k in sem_class_data:
-        sem_class_lower[k.lower()] = sem_class_data[k]
-    sem_class_data = sem_class_lower
-    # print(sem_class_data)
+        curr_val = sem_class_data[k][sem_class_type]
+        if curr_val not in ("", "—"):
+            sem_class_lower[k.lower()] = curr_val
+    return sem_class_lower
 
+def delexicalise_with_sem_classes(pipeline_corpus: "enunlg.data_management.enriched_webnlg.EnrichedWebNLGCorpus",
+                                  sem_class_dict: Dict[str, str]) -> "enunlg.data_management.enriched_webnlg.EnrichedWebNLGCorpus":
     present = 0
     absent = 0
     for entry in pipeline_corpus:
         # check if entities are in sem_class_data
-        print("-=-=-=-=-=-=-=-==-")
-        print(entry)
+        logger.debug("-=-=-=-=-=-=-=-==-")
+        logger.debug(entry)
         for reference in entry.references.sequence:
             entity = reference.entity
-            if entity.lower() in sem_class_data:
-                dbpedia_class = sem_class_data[entity.lower()]["class_dbp"]
-                if dbpedia_class not in ("", "—"):
-                    # print(entry)
-                    entry.delex_reference(entity, dbpedia_class)
-                    # print(entry)
-                    present +=1
-                else:
-                    absent += 1
+            logger.debug(f"===> entity: {entity}")
+            logger.debug(f"---> original tag: {entry.references.entity_orig_tag_mapping[entity]}")
+            if entity.lower() in sem_class_dict:
+                dbpedia_class = sem_class_dict[entity.lower()]
+                entry.delex_reference(entity, dbpedia_class)
+                present +=1
             else:
                 absent += 1
             # if we found one, create a new dict entry mapping the old class to the new one
-            # incorporate tehse changes into extract_reg_from_lex so so we can call the new
+            # incorporate these changes into extract_reg_from_lex so so we can call the new
             #   method in raw_to_usable to get what we need
-    print(present / (present+absent))
+    logger.info(f"Percentage of entities for which we have an entry in the sem_class_dict: {present / (present + absent)}")
     return pipeline_corpus
-
 
 
 def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipelinecorpus.TextPipelineCorpus:
@@ -65,8 +63,8 @@ def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipeline
     if config.corpus.name == "e2e-enriched":
         enunlg.data_management.enriched_e2e.validate_enriched_e2e(pipeline_corpus)
 
-    json_filepath = Path("datasets/raw/2024-04-12_mille_webnlg_dbp-wkd-classes.json")
-    pipeline_corpus = delexicalise_with_sem_classes(pipeline_corpus, json_filepath)
+    sem_class_dict = sem_class_dict_from_mille("datasets/raw/2024-04-12_mille_webnlg_dbp-wkd-classes.json")
+    pipeline_corpus = delexicalise_with_sem_classes(pipeline_corpus, sem_class_dict)
 
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
     if config.input_mode == "rdf":
