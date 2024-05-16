@@ -33,8 +33,13 @@ class RDFTriple(object):
         return RDFTriple(subj.strip('"'), pred.strip('"'), obj.strip('"'))
 
     def delex_reference(self, entity, sem_class):
-        self.subject = self.subject.replace(entity, sem_class)
-        self.object = self.object.replace(entity, sem_class)
+        if entity == self.subject:
+            self.subject = self.subject.replace(entity, sem_class)
+        if entity == self.object:
+            self.object = self.object.replace(entity, sem_class)
+
+    def can_delex(self, entity: str) -> bool:
+        return entity == self.subject or entity == self.object
 
 
 class RDFTripleSet(set):
@@ -47,9 +52,12 @@ class RDFTripleList(list):
         super().__init__(seq)
 
     def delex_reference(self, entity, sem_class):
-        for triple in self:
-            # print(triple)
-            triple.delex_reference(entity, sem_class)
+        if self.can_delex(entity):
+            for triple in self:
+                triple.delex_reference(entity, sem_class)
+
+    def can_delex(self, entity: str) -> bool:
+        return any([triple.can_delex(entity) for triple in self])
 
 
 class WebNLGLex(object):
