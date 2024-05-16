@@ -135,29 +135,51 @@ class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
         return f"{self.__class__.__name__}({attr_string}, references={self.references})"
 
     def delex_reference(self, entity, sem_class):
-        # TODO delexicalisation should only succeed if *all* layers can be delexicalized w.r.t. that entity
-        self._delexicalization_tracking.append((entity, sem_class))
-        sem_class_string = f"__{sem_class}-{self._sem_class_counts[sem_class]}__"
-        print(sem_class_string)
+        if self.can_delex(entity):
+            orig_tag = self.references.entity_orig_tag_mapping[entity]
+            sem_class_string = f"__{sem_class}-{self._sem_class_counts[sem_class]}__"
+            self._delexicalization_tracking.append((entity, sem_class, orig_tag))
+            for layer_name in self.annotation_layers:
+                layer = self[layer_name]
+                if isinstance(layer, RDFTripleList):
+                    layer.delex_reference(entity, sem_class_string)
+                elif isinstance(layer, tuple):
+                    if all(isinstance(element, RDFTripleList) for element in layer):
+                        for element in layer:
+                            element.delex_reference(entity, sem_class_string)
+                elif isinstance(layer, str):
+                    if layer_name == 'lexicalisation':
+                        self[layer_name] = layer.replace(orig_tag, sem_class_string)
+                    else:
+                        self[layer_name] = layer.replace(entity, sem_class_string).replace(entity.replace("_", " "), sem_class_string)
+                else:
+                    raise ValueError(f"Unexpected type for this layer: {type(layer)}")
+            self._sem_class_counts[sem_class] += 1
+        else:
+            print(f"could not delex {entity}")
+
+    def can_delex(self, entity):
+        can_delex = True
         orig_tag = self.references.entity_orig_tag_mapping[entity]
-        print(orig_tag)
         for layer_name in self.annotation_layers:
             layer = self[layer_name]
             if isinstance(layer, RDFTripleList):
-                layer.delex_reference(entity, sem_class_string)
+                if not layer.can_delex(entity):
+                    can_delex = False
             elif isinstance(layer, tuple):
                 if all(isinstance(element, RDFTripleList) for element in layer):
-                    for element in layer:
-                        element.delex_reference(entity, sem_class_string)
+                    if not any(element.can_delex(entity) for element in layer):
+                        can_delex = False
             elif isinstance(layer, str):
                 if layer_name == 'lexicalisation':
-                    self[layer_name] = layer.replace(orig_tag, sem_class_string)
+                    if orig_tag not in self[layer_name]:
+                        can_delex = False
                 else:
-                    self[layer_name] = layer.replace(entity, sem_class_string).replace(entity.replace("_", " "), sem_class_string)
+                    if entity.replace("_", " ") not in self[layer_name]:
+                        can_delex = False
             else:
                 raise ValueError(f"Unexpected type for this layer: {type(layer)}")
-        print(self)
-        self._sem_class_counts[sem_class] += 1
+        return can_delex
 
     def undo_enriched_webnlg_delex(self):
         for reference in self.references.sequence:
