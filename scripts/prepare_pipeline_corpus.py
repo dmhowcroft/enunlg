@@ -39,8 +39,10 @@ def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipeline
     if config.corpus.name == "e2e-enriched":
         enunlg.data_management.enriched_e2e.validate_enriched_e2e(pipeline_corpus)
 
-    sem_class_dict = sem_class_dict_from_mille("datasets/raw/2024-04-12_mille_webnlg_dbp-wkd-classes.json")
-    pipeline_corpus = delexicalise_with_sem_classes(pipeline_corpus, sem_class_dict)
+    sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
+    sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
+    pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)
+
 
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
     if config.input_mode == "rdf":
