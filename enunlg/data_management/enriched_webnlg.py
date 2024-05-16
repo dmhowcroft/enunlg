@@ -175,10 +175,10 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                     for sortedtriple in sentence.striple:
                         this_triple = RDFTriple.from_string(sortedtriple)
                         selected_ordered_triples.append(this_triple)
-                        sentence_triples.append(this_triple)
+                        sentence_triples.append(deepcopy(this_triple))
                     sentence_grouped_triples.append(tuple(sentence_triples))
                 selected_input = RDFTripleList(selected_ordered_triples)
-                ordered_input = RDFTripleList(selected_ordered_triples)
+                ordered_input = RDFTripleList(deepcopy(selected_ordered_triples))
                 sentence_segmented_input = tuple(sentence_grouped_triples)
                 lexicalization = lex.lexicalization
                 raw_output = lex.text
