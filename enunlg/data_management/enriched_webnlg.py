@@ -101,6 +101,10 @@ class EnrichedWebNLGReference(object):
         self.ref_type = ref_type
         self.form = form
 
+    def __repr__(self):
+        attr_string = ", ".join([f"{key}={self.__getattribute__(key)}" for key in ("entity", "seq_loc", "orig_delex_tag", "ref_type", "form")])
+        return f"{self.__class__.__name__}({attr_string})"
+
 class EnrichedWebNLGReferences(object):
     def __init__(self, ref_list):
         self.sequence = ref_list
@@ -109,6 +113,10 @@ class EnrichedWebNLGReferences(object):
         for index, ref in enumerate(self.sequence):
             self.lookup_by_entity[ref.entity].append(index)
             self.entity_orig_tag_mapping[ref.entity] = ref.orig_delex_tag
+
+    def __repr__(self):
+        refs_string = ", ".join([f"{ref}" for ref in self.sequence])
+        return f"{self.__class__.__name__}({refs_string})"
 
 
 class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
@@ -121,6 +129,10 @@ class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
         self.references = EnrichedWebNLGReferences([])
         self._delexicalization_tracking = []
         self._sem_class_counts = defaultdict(int)
+
+    def __repr__(self):
+        attr_string = ", ".join([f"{layer}={str(self[layer])}" for layer in self.annotation_layers])
+        return f"{self.__class__.__name__}({attr_string}, references={self.references})"
 
     def delex_reference(self, entity, sem_class):
         # TODO delexicalisation should only succeed if *all* layers can be delexicalized w.r.t. that entity
