@@ -12,14 +12,14 @@ model:
   encoder:
     embeddings:
       type: "torch"
-      embedding_dim: 50
+      embedding_dim: 64
       backprop: True
     cell: lstm
     num_hidden_dims: 128
   decoder_selected_input:
     embeddings:
       type: "torch"
-      embedding_dim: 50
+      embedding_dim: 64
       backprop: True
       padding_idx: 0
       start_idx: 1
@@ -29,7 +29,7 @@ model:
   decoder_ordered_input:
     embeddings:
       type: "torch"
-      embedding_dim: 50
+      embedding_dim: 64
       backprop: True
       padding_idx: 0
       start_idx: 1
@@ -39,7 +39,7 @@ model:
   decoder_sentence_segmented_input:
     embeddings:
       type: "torch"
-      embedding_dim: 50
+      embedding_dim: 64
       backprop: True
       padding_idx: 0
       start_idx: 1
@@ -49,7 +49,7 @@ model:
   decoder_lexicalisation:
     embeddings:
       type: "torch"
-      embedding_dim: 50
+      embedding_dim: 64
       backprop: True
       padding_idx: 0
       start_idx: 1
@@ -59,7 +59,7 @@ model:
   decoder_referring_expressions:
     embeddings:
       type: "torch"
-      embedding_dim: 50
+      embedding_dim: 64
       backprop: True
       padding_idx: 0
       start_idx: 1
@@ -69,7 +69,7 @@ model:
   decoder_raw_output:
     embeddings:
       type: "torch"
-      embedding_dim: 50
+      embedding_dim: 64
       backprop: True
       padding_idx: 0
       start_idx: 1
@@ -81,7 +81,7 @@ mode: train
 
 train:
   num_epochs: 20
-  record_interval: 0.1
+  record_interval: 0.2
   shuffle: True
   batch_size: 1
   optimizer: adam
