@@ -1,3 +1,6 @@
+from pathlib import Path
+
+import json
 import logging
 import os
 
@@ -38,6 +41,10 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 
     if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
         enunlg.util.translate_e2e_to_rdf(corpus)
+    elif config.data.corpus.name == "webnlg-enriched":
+        sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
+        sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
+        corpus.delexicalise_with_sem_classes(sem_class_lower)
 
     if config.data.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
