@@ -121,3 +121,31 @@ class MultitaskSeq2SeqGenerator(object):
             for layer_name in layer_names[1:]
         }
         return input_embeddings, output_embeddings
+
+
+class SingleVocabMultitaskSeq2SeqGenerator(MultitaskSeq2SeqGenerator):
+    STATE_ATTRIBUTES = ('layers', 'vocabularies', 'max_length_any_layer', 'corpus_metadata', 'model')
+
+    def __init__(self, corpus: enunlg.data_management.pipelinecorpus.TextPipelineCorpus, model_config: omegaconf.DictConfig):
+        """
+        Create a multi-decoder seq2seq+attn model based on `corpus`.
+
+        The first layer will be treated as input, subsequent layers will be treated as targets for decoding.
+        At training time we use all the decoding layers, but at inference time we only decode at the final layer.
+
+        :param corpus:
+        """
+        super().__init__(corpus, model_config)
+        all_layers_as_text = []
+        for layer_name in self.layers:
+            all_layers_as_text.extend(list(corpus.items_by_layer(layer_name)))
+        self.vocabulary = enunlg.vocabulary.TokenVocabulary(all_layers_as_text)
+        self.vocabularies: Dict[str, enunlg.vocabulary.TokenVocabulary] = {layer: self.vocabulary for layer in self.layers}  # type: ignore[misc]
+        # Store some basic information about the corpus
+        self.max_length_any_layer = corpus.max_layer_length
+        self.corpus_metadata = corpus.metadata
+        self.embedding = torch.nn.Embedding(self.vocabulary.size, 50)
+        self.model = enunlg.encdec.multitask_seq2seq.DeepEncoderMultiDecoderSeq2SeqAttn(self.layers, [self.vocabulary.size for layer in self.vocabularies], model_config)
+        self.model.encoder.add_module('embedding', self.embedding)
+        for layer in self.model.task_decoders:
+            self.model.task_decoders[layer].add_module('output_embeddings', self.embedding)

@@ -12,7 +12,7 @@ import torch
 
 from enunlg.convenience.binary_mr_classifier import FullBinaryMRClassifier
 from enunlg.data_management.loader import load_data_from_config
-from enunlg.generators.multitask_seq2seq import MultitaskSeq2SeqGenerator
+from enunlg.generators.multitask_seq2seq import MultitaskSeq2SeqGenerator, SingleVocabMultitaskSeq2SeqGenerator
 
 import enunlg.data_management.enriched_e2e
 import enunlg.data_management.enriched_webnlg
@@ -36,8 +36,9 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     validation_corpus.print_summary_stats()
     print("____________")
 
-    # Drop entries that are missing data
-    enunlg.data_management.enriched_e2e.validate_enriched_e2e(corpus)
+    if config.data.corpus.name == "e2e-enriched":
+        # Drop entries that are missing data
+        enunlg.data_management.enriched_e2e.validate_enriched_e2e(corpus)
 
     if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
         enunlg.util.translate_e2e_to_rdf(corpus)
@@ -58,6 +59,7 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     text_corpus.print_summary_stats()
     text_corpus.print_sample(0, 100, 10)
 
+    # generator = SingleVocabMultitaskSeq2SeqGenerator(text_corpus, config.model)
     generator = MultitaskSeq2SeqGenerator(text_corpus, config.model)
     total_parameters = enunlg.util.count_parameters(generator.model)
     if shortcircuit == 'parameters':
@@ -89,8 +91,10 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
     corpus.print_summary_stats()
     print("____________")
 
-    # Drop entries that are missing data
-    enunlg.data_management.enriched_e2e.validate_enriched_e2e(corpus)
+
+    if config.data.corpus.name == "e2e-enriched":
+        # Drop entries that are missing data
+        enunlg.data_management.enriched_e2e.validate_enriched_e2e(corpus)
     multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr in corpus.items_by_layer('raw_input')]
 
     if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
