@@ -1,8 +1,8 @@
 from pathlib import Path
-from typing import Dict
 
 import json
 import logging
+import sys
 
 import omegaconf
 import hydra
@@ -32,30 +32,6 @@ def sem_class_dict_from_mille(json_filepath, sem_class_type: str = 'class_dbp'):
             sem_class_lower[k.lower()] = curr_val
     return sem_class_lower
 
-def delexicalise_with_sem_classes(pipeline_corpus: "enunlg.data_management.enriched_webnlg.EnrichedWebNLGCorpus",
-                                  sem_class_dict: Dict[str, str]) -> "enunlg.data_management.enriched_webnlg.EnrichedWebNLGCorpus":
-    present = 0
-    absent = 0
-    for entry in pipeline_corpus:
-        # check if entities are in sem_class_data
-        logger.debug("-=-=-=-=-=-=-=-==-")
-        logger.debug(entry)
-        for reference in entry.references.sequence:
-            entity = reference.entity
-            logger.debug(f"===> entity: {entity}")
-            logger.debug(f"---> original tag: {entry.references.entity_orig_tag_mapping[entity]}")
-            if entity.lower() in sem_class_dict:
-                dbpedia_class = sem_class_dict[entity.lower()]
-                entry.delex_reference(entity, dbpedia_class)
-                present +=1
-            else:
-                absent += 1
-            # if we found one, create a new dict entry mapping the old class to the new one
-            # incorporate these changes into extract_reg_from_lex so so we can call the new
-            #   method in raw_to_usable to get what we need
-    logger.info(f"Percentage of entities for which we have an entry in the sem_class_dict: {present / (present + absent)}")
-    return pipeline_corpus
-
 
 def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipelinecorpus.TextPipelineCorpus:
     pipeline_corpus = load_data_from_config(config, splits=["dev"])
@@ -74,7 +50,6 @@ def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipeline
     return enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(pipeline_corpus, mapping_functions=linearization_functions)
 
 
-
 @hydra.main(version_base=None, config_path='../config/data', config_name='enriched-webnlg_as-rdf')
 def prep_pipeline_corpus_main(config: omegaconf.DictConfig) -> None:
     # Add Hydra-managed output dir to the config dictionary
@@ -86,7 +61,7 @@ def prep_pipeline_corpus_main(config: omegaconf.DictConfig) -> None:
 
     corpus = prep_corpus(config)
 
-
+    corpus.write_to_iostream(Path("webnlg.delex.tmp").open("w"))
     # corpus.write_to_iostream(sys.stdout)
 
 

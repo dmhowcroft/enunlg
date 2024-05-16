@@ -2,7 +2,7 @@ from collections import defaultdict
 from collections.abc import MutableMapping
 from copy import deepcopy
 from pathlib import Path
-from typing import Iterable, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import difflib
 import logging
@@ -198,6 +198,50 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                 new_item.references = extract_refs_from_xsdata_rep(lex.references.reference)
                 out_corpus.append(new_item)
         return cls(out_corpus)
+
+    def delexicalise_with_sem_classes(self, sem_class_dict: Dict[str, str]):
+        present = set()
+        absent = set()
+        undelexicalisable_entries = []
+        for idx, entry in enumerate(self):
+            logger.debug("-=-=-=-=-=-=-=-==-")
+            logger.debug(f"Attempting to delex entry #{idx}")
+            logger.debug(entry)
+            orig_entry = deepcopy(entry)
+            for reference in entry.references.sequence:
+                entity = reference.entity
+                logger.debug(f"===> entity: {entity}")
+                logger.debug(f"---> original tag: {entry.references.entity_orig_tag_mapping[entity]}")
+                if entity.lower() in sem_class_dict:
+                    # logger.debug(f"entity found: {entity}")
+                    dbpedia_class = sem_class_dict[entity.lower()]
+                    # logger.debug(f"{dbpedia_class=}")
+                    if entry.can_delex(entity):
+                        entry.delex_reference(entity, dbpedia_class)
+                        present.add(entity)
+                    else:
+                        entry['lexicalisation'] = entry['lexicalisation'].replace(reference.orig_delex_tag,
+                                                                                  str(reference.form), 1)
+                else:
+                    logger.debug(f"{entity}:\t{reference.orig_delex_tag}\t{reference.form}")
+                    logger.debug(f"Before => {entry['lexicalisation']}")
+                    entry['lexicalisation'] = entry['lexicalisation'].replace(reference.orig_delex_tag,
+                                                                              str(reference.form), 1)
+                    logger.debug(f"After => {entry['lexicalisation']}")
+                    logger.debug(f"Text => {entry['raw_output']}")
+                    absent.add(entity)
+            assert_err_msg = f"Entry should have changed???\n{entry}"
+            if repr(orig_entry) == repr(entry):
+                undelexicalisable_entries.append(idx)
+            if "AGENT-" in entry['lexicalisation'] or "BRIDGE-" in entry['lexicalisation'] or "PATIENT-" in entry[
+                'lexicalisation']:
+                logger.debug(f"could not fully delexicalise the lexicalisation layer for {entry}")
+                undelexicalisable_entries.append(idx)
+        logger.info(
+            f"Percentage of entities for which we have an entry in the sem_class_dict: {len(present) / (len(present) + len(absent))}")
+        logger.info(f"We had to discard {len(undelexicalisable_entries)} entries as undelexicalisable.")
+        for idx in reversed(undelexicalisable_entries):
+            self.pop(idx)
 
 
 def extract_raw_input(entry: EnrichedWebNLGEntry) -> List[RDFTripleList]:
