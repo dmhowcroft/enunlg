@@ -451,14 +451,15 @@ class TokenVocabulary(object):
 
     def get_tokens(self, token_integers: Iterable[int], drop_filler=True) -> List[str]:
         """
-        Map a sequence of integers to a sequence
+        Map a sequence of integers to a sequence of tokens
         """
         output = []
         for integer in token_integers:
+            # cast to int to make sure it's not a torch tensor
+            integer = int(integer)
             if drop_filler and integer in self.filler:
                 continue
-            # cast to int to make sure it's not a torch tensor
-            output.append(self.get_token(int(integer)))
+            output.append(self.get_token(integer))
         return output
 
     def pretty_string(self, token_integers, drop_filler=True) -> str:
