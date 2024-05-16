@@ -28,11 +28,11 @@ class BasicTrainer(object):
         self.loss = torch.nn.CrossEntropyLoss()
 
         # Initialize optimizers
-        self.learning_rate = self.config.learning_rate
+        self.base_learning_rate = self.config.learning_rate
         if self.config.optimizer == 'adam':
-            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.learning_rate)
+            self.optimizer = torch.optim.Adam(self.model.parameters(), lr=self.base_learning_rate)
         elif self.config.optimizer == 'sgd':
-            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.learning_rate)
+            self.optimizer = torch.optim.SGD(self.model.parameters(), lr=self.base_learning_rate)
         else:
             raise ValueError(f"Unsupported choice of optimizer. Expecting 'adam' or 'sgd' but got {self.config.optimizer}")
 
@@ -53,7 +53,7 @@ class BasicTrainer(object):
         raise NotImplementedError("Use one of the subclasses, don't try to use this one directly")
 
     def _log_epoch_begin_stats(self):
-        logger.info(f"Learning rate is now {self.learning_rate}")
+        logger.info(f"Learning rate is now {self.scheduler.get_last_lr()}")
 
     def _log_examples_this_interval(self, pairs):
         for i, o in pairs:
