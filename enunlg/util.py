@@ -70,12 +70,12 @@ def hamming_error(target_bitvector, bitvector) -> float:
 def translate_e2e_to_rdf(corpus) -> None:
     for entry in corpus:
         agent = entry.raw_input['name']
-        entry.raw_input = enunlg.util.mr_to_rdf(entry.raw_input)
-        entry.selected_input = enunlg.util.mr_to_rdf(entry.selected_input)
-        entry.ordered_input = enunlg.util.mr_to_rdf(entry.ordered_input)
+        entry.raw_input = mr_to_rdf(entry.raw_input)
+        entry.selected_input = mr_to_rdf(entry.selected_input)
+        entry.ordered_input = mr_to_rdf(entry.ordered_input)
         sentence_mrs = []
         for sent_mr in entry.sentence_segmented_input:
             sent_mr_dict = dict(sent_mr)
             sent_mr_dict['name'] = agent
-            sentence_mrs.append(enunlg.util.mr_to_rdf(sent_mr_dict))
+            sentence_mrs.append(mr_to_rdf(sent_mr_dict))
         entry.sentence_segmented_input = sentence_mrs
