@@ -28,6 +28,7 @@ tensorboard = "2.15.1"
 setuptools = "59.5.0"
 submitit = "^1.5.1"
 hydra-submitit-launcher = "^1.2.0"
+sparqlwrapper = "^2.0.0"
 
 
 [tool.poetry.group.dev.dependencies]
