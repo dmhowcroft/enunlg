@@ -28,9 +28,9 @@ ENRICHED_WEBNLG_CONFIG = omegaconf.DictConfig({'ENRICHED_WEBNLG_DIR':
 
 WEBNLG_SPLIT_DIRS = ('train', 'dev', 'test')
 
-DELEX_LABELS = ["AGENT-1",
-                "BRIDGE-1", "BRIDGE-2", "BRIDGE-3", "BRIDGE-4",
-                "PATIENT-1", "PATIENT-2", "PATIENT-3", "PATIENT-4", "PATIENT-5", "PATIENT-6", "PATIENT-7"]
+ORIG_DELEX_LABELS = ["AGENT-1",
+                     "BRIDGE-1", "BRIDGE-2", "BRIDGE-3", "BRIDGE-4",
+                     "PATIENT-1", "PATIENT-2", "PATIENT-3", "PATIENT-4", "PATIENT-5", "PATIENT-6", "PATIENT-7"]
 
 
 DIFFER = difflib.Differ()
@@ -214,10 +214,10 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                 selected_input = RDFTripleList(selected_ordered_triples)
                 ordered_input = RDFTripleList(deepcopy(selected_ordered_triples))
                 sentence_segmented_input = tuple(sentence_grouped_triples)
-                lexicalization = lex.lexicalization
+                lexicalisation = lex.lexicalization
                 raw_output = lex.text
                 # This will drop any entries which contain 'None' for any annotation layers
-                if None in [raw_output, lex.template, lexicalization]:
+                if None in [raw_output, lex.template, lexicalisation]:
                     continue
                 if any([None in x for x in [raw_input, selected_input, ordered_input, sentence_segmented_input]]):
                     continue
@@ -227,7 +227,7 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                                                'selected_input': selected_input,
                                                'ordered_input': ordered_input,
                                                'sentence_segmented_input': sentence_segmented_input,
-                                               'lexicalisation': lexicalization,
+                                               'lexicalisation': lexicalisation,
                                                'raw_output': raw_output})
                 new_item.references = extract_refs_from_xsdata_rep(lex.references.reference)
                 out_corpus.append(new_item)
