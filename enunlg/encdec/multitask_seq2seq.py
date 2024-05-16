@@ -205,6 +205,8 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
             return self.forward_e2e(enc_emb, max_length)
 
     def _save_classname_to_dir(self, directory_path):
+        if not Path(directory_path).exists():
+            Path(directory_path).mkdir()
         with (Path(directory_path) / "__class__.__name__").open('w') as class_file:
             class_file.write(self.__class__.__name__)
 
