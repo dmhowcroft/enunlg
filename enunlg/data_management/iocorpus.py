@@ -30,6 +30,11 @@ class Corpus(list):
 
         self.metadata: Optional[Dict[str, Any]] = None
 
+    def __getitem__(self, key):
+        if isinstance(key, slice):
+            return self.__class__(super().__getitem__(key))
+        return super().__getitem__(key)
+
 
 class IOCorpus(Corpus):
     def __init__(self, seq: Optional[Iterable]) -> None:
