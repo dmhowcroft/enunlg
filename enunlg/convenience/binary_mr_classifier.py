@@ -9,6 +9,7 @@ from enunlg.nlu import binary_mr_classifier
 
 import enunlg
 import enunlg.embeddings.binary
+import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.util
 import enunlg.vocabulary
 
@@ -28,6 +29,10 @@ class FullBinaryMRClassifier(object):
         self.model = binary_mr_classifier.TGenSemClassifier(self.text_vocab.size,
                                                             self.binary_mr_vocab.dimensionality,
                                                             model_config)
+
+    def prepare_input(self, corpus):
+        return [das.MultivaluedDA.from_slot_value_list('inform', mr.items())
+                for mr in corpus.items_by_layer('raw_input')]
 
     @property
     def model_config(self):
