@@ -58,6 +58,7 @@ class MultiDecoderSeq2SeqAttnTrainer(BasicTrainer):
         :param validation_pairs: input and output indices for embeddings to be used in the validation step
         :return: list of average loss for each `record_interval` for each epoch
         """
+        logger.info(f"Beginning training over {len(pairs)} training pairs with {len(validation_pairs)} validation pairs.")
         start_time = time.time()
         prev_chunk_start_time = start_time
         loss_this_interval = 0
