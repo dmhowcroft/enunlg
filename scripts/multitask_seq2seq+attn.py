@@ -1,10 +1,9 @@
+from copy import deepcopy
 from pathlib import Path
 
 import json
 import logging
 import os
-
-from sacrebleu import metrics as sm
 
 import omegaconf
 import hydra
@@ -18,7 +17,6 @@ import enunlg.data_management.enriched_e2e
 import enunlg.data_management.enriched_webnlg
 import enunlg.data_management.pipelinecorpus
 import enunlg.encdec.multitask_seq2seq
-import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.trainer.multitask_seq2seq
 import enunlg.util
 import enunlg.vocabulary
@@ -32,16 +30,20 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     corpus = load_data_from_config(config.data, config.train.train_splits)
     corpus.print_summary_stats()
     print("____________")
-    validation_corpus = load_data_from_config(config.data, config.train.dev_splits)
-    validation_corpus.print_summary_stats()
+    dev_corpus = load_data_from_config(config.data, config.train.dev_splits)
+    dev_corpus.print_summary_stats()
     print("____________")
 
     if config.data.corpus.name == "e2e-enriched":
         # Drop entries that are missing data
-        enunlg.data_management.enriched_e2e.validate_enriched_e2e(corpus)
+        corpus.validate_enriched_e2e()
+        dev_corpus.validate_enriched_e2e()
 
+    slot_value_format_corpus = deepcopy(corpus)
+    slot_value_format_dev_corpus = deepcopy(dev_corpus)
     if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
         enunlg.util.translate_e2e_to_rdf(corpus)
+        enunlg.util.translate_e2e_to_rdf(dev_corpus)
     elif config.data.corpus.name == "webnlg-enriched":
         sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
         sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
@@ -59,6 +61,20 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     text_corpus.print_summary_stats()
     text_corpus.print_sample(0, 100, 10)
 
+    dev_text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(dev_corpus, mapping_functions=linearization_functions)
+    dev_text_corpus.metadata['linearization_functions'] = linearization_metadata
+    dev_text_corpus.print_summary_stats()
+    dev_text_corpus.print_sample(0, 100, 10)
+    # drop entries that are too long
+    indices_to_drop = []
+    for idx, entry in enumerate(dev_text_corpus):
+        if len(entry['raw_input']) > config.model.max_input_length - 2:
+            indices_to_drop.append(idx)
+            break
+    logger.info(f"Dropping {len(indices_to_drop)} entries from the validation set for having too long an input rep.")
+    for idx in reversed(indices_to_drop):
+        dev_text_corpus.pop(idx)
+
     # generator = SingleVocabMultitaskSeq2SeqGenerator(text_corpus, config.model)
     generator = MultitaskSeq2SeqGenerator(text_corpus, config.model)
     total_parameters = enunlg.util.count_parameters(generator.model)
@@ -69,17 +85,36 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
                                                                               input_vocab=generator.vocabularies["raw_input"],
                                                                               output_vocab=generator.vocabularies["raw_output"])
 
-    input_embeddings, output_embeddings = generator.prep_embeddings(text_corpus)
+    # Section to be commented out normally, but useful for testing on small datasets
+    # tmp_train_size = 50
+    # tmp_dev_size = 10
+    # slot_value_format_corpus = slot_value_format_corpus[:tmp_train_size]
+    # text_corpus = text_corpus[:tmp_train_size]
+    # slot_value_format_dev_corpus = slot_value_format_dev_corpus[:tmp_dev_size]
+    # dev_text_corpus = dev_text_corpus[:tmp_dev_size]
+
+    input_embeddings, output_embeddings = generator.prep_embeddings(text_corpus, config.model.max_input_length - 2)
     task_embeddings = [[output_embeddings[layer][idx]
                         for layer in generator.layers[1:]]
                        for idx in range(len(input_embeddings))]
-
     multitask_training_pairs = list(zip(input_embeddings, task_embeddings))
-    # multitask_training_pairs = multitask_training_pairs[:100]
-    print(f"{multitask_training_pairs[0]=}")
-    print(f"{len(multitask_training_pairs)=}")
-    nine_to_one_split_idx = int(len(multitask_training_pairs) * 0.9)
-    trainer.train_iterations(multitask_training_pairs[:nine_to_one_split_idx], multitask_training_pairs[nine_to_one_split_idx:])
+
+    dev_input_embeddings, dev_output_embeddings = generator.prep_embeddings(dev_text_corpus, config.model.max_input_length - 2)
+    dev_task_embeddings = [[dev_output_embeddings[layer][idx]
+                            for layer in generator.layers[1:]]
+                           for idx in range(len(dev_input_embeddings))]
+    multitask_validation_pairs = list(zip(dev_input_embeddings, dev_task_embeddings))
+
+    trainer.train_iterations(multitask_training_pairs, multitask_validation_pairs)
+
+    ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
+    logger.info("===============================================")
+    logger.info("Calculating performance on the training data...")
+    generator.evaluate(slot_value_format_corpus, text_corpus, ser_classifier)
+
+    logger.info("===============================================")
+    logger.info("Calculating performance on the validation data...")
+    generator.evaluate(slot_value_format_dev_corpus, dev_text_corpus, ser_classifier)
 
     generator.save(os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.nlg"))
 
@@ -87,25 +122,28 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
 
-    corpus = load_data_from_config(config.data, config.test.test_splits)
-    corpus.print_summary_stats()
+    rich_corpus = load_data_from_config(config.data, config.test.test_splits)
+    rich_corpus.print_summary_stats()
     print("____________")
 
 
     if config.data.corpus.name == "e2e-enriched":
         # Drop entries that are missing data
-        enunlg.data_management.enriched_e2e.validate_enriched_e2e(corpus)
-    multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr in corpus.items_by_layer('raw_input')]
+        enunlg.data_management.enriched_e2e.validate_enriched_e2e(rich_corpus)
 
     if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
-        enunlg.util.translate_e2e_to_rdf(corpus)
+        enunlg.util.translate_e2e_to_rdf(rich_corpus)
+    elif config.data.corpus.name == "webnlg-enriched":
+        sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
+        sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
+        rich_corpus.delexicalise_with_sem_classes(sem_class_lower)
 
     if config.data.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
     elif config.data.input_mode == "e2e":
         linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
-    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
+    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(rich_corpus, mapping_functions=linearization_functions)
     text_corpus.print_summary_stats()
     text_corpus.print_sample(0, 100, 10)
 
@@ -114,47 +152,8 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
     if shortcircuit == 'parameters':
         exit()
 
-    max_input_length = generator.model.max_input_length - 2
-
-    # drop entries that are too long
-    indices_to_drop = []
-    for idx, entry in enumerate(text_corpus):
-        if len(entry['raw_input']) > max_input_length:
-            indices_to_drop.append(idx)
-            break
-
-    logger.info(f"Dropping {len(indices_to_drop)} entries for having too long an input rep.")
-    for idx in reversed(indices_to_drop):
-        text_corpus.pop(idx)
-
-    test_input, test_output = generator.prep_embeddings(text_corpus, max_input_length)
-    test_ref = test_output['raw_output']
-    logger.info(f"Num. input embeddings: {len(test_input)}")
-    logger.info(f"Num. input refs: {len(test_ref)}")
-    outputs = [generator.model.generate(embedding) for embedding in test_input]
-
-    best_outputs = [" ".join(generator.vocabularies['raw_output'].get_tokens([int(x) for x in output])) for output in outputs]
-    ref_outputs = [" ".join(generator.vocabularies['raw_output'].get_tokens([int(x) for x in output[1:]])).replace(" @ ", " ") for output in test_ref]
-    for best, ref in zip(best_outputs[:10], ref_outputs[:10]):
-        logger.info(best)
-        logger.info(ref)
-
-    # Calculate BLEU compared to targets
-    bleu = sm.BLEU()
-    # We only have one reference per output
-    bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
-    logger.info(f"Current score: {bleu_score}")
-
-    # Estimate SER using classifier
-    classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
-    test_tokens = [text.strip().split() for text in best_outputs]
-    test_text_ints = [classifier.text_vocab.get_ints(text) for text in test_tokens]
-    test_mr_bitvectors = [classifier.binary_mr_vocab.embed_da(mr) for mr in multi_da_mrs]
-    ser_pairs = [(torch.tensor(text_ints, dtype=torch.long),
-                  torch.tensor(mr_bitvectors, dtype=torch.float))
-                 for text_ints, mr_bitvectors in zip(test_text_ints, test_mr_bitvectors)]
-
-    logger.info(f"Test error: {classifier.evaluate(ser_pairs):0.2f}")
+    ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
+    generator.evaluate(rich_corpus, text_corpus, ser_classifier)
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')

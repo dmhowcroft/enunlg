@@ -1,8 +1,11 @@
 from pathlib import Path
 from typing import List, Dict, Optional
 
+import logging
 import tarfile
 import tempfile
+
+from sacrebleu import metrics as sm
 
 import omegaconf
 import torch
@@ -11,6 +14,7 @@ import enunlg.data_management
 import enunlg.encdec.multitask_seq2seq
 import enunlg.vocabulary
 
+logger = logging.getLogger(__name__)
 
 class MultitaskSeq2SeqGenerator(object):
     STATE_ATTRIBUTES = ('layers', 'vocabularies', 'max_length_any_layer', 'corpus_metadata', 'model')
@@ -121,6 +125,56 @@ class MultitaskSeq2SeqGenerator(object):
             for layer_name in layer_names[1:]
         }
         return input_embeddings, output_embeddings
+
+    def evaluate(self, slot_value_corpus, text_corpus, ser_classifier=None):
+        max_input_length = self.model.max_input_length - 2
+
+        # drop entries that are too long
+        indices_to_drop = []
+        for idx, entry in enumerate(text_corpus):
+            if len(entry['raw_input']) > max_input_length:
+                indices_to_drop.append(idx)
+                break
+        logger.info(f"Dropping {len(indices_to_drop)} entries for having too long an input rep.")
+        for idx in reversed(indices_to_drop):
+            text_corpus.pop(idx)
+
+        # Prepare the embeddings
+        test_input, test_output = self.prep_embeddings(text_corpus, max_input_length)
+        test_ref = test_output['raw_output']
+        logger.info(f"Num. input embeddings: {len(test_input)}")
+        logger.info(f"Num. input refs: {len(test_ref)}")
+        outputs = [self.model.generate(embedding) for embedding in test_input]
+
+        # Perform generation
+        best_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output]))
+                        for output in outputs]
+        # TODO move Enriched{E2E,WebNLG}-specific formatting out of this function
+        ref_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output[1:]])).replace(" @ ", " ")
+                       for output in test_ref]
+        for best, ref in zip(best_outputs[:10], ref_outputs[:10]):
+            logger.info(best)
+            logger.info(ref)
+
+        # Calculate BLEU compared to targets
+        bleu = sm.BLEU()
+        # We only have one reference per output
+        bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
+        logger.info(f"Current score: {bleu_score}")
+
+        if ser_classifier is not None:
+            multi_da_mrs = ser_classifier.prepare_input(slot_value_corpus)
+            for idx in reversed(indices_to_drop):
+                multi_da_mrs.pop(idx)
+            # Estimate SER using classifier
+            test_tokens = [text.strip().split() for text in best_outputs]
+            test_text_ints = [ser_classifier.text_vocab.get_ints(text) for text in test_tokens]
+            test_mr_bitvectors = [ser_classifier.binary_mr_vocab.embed_da(mr) for mr in multi_da_mrs]
+            ser_pairs = [(torch.tensor(text_ints, dtype=torch.long),
+                          torch.tensor(mr_bitvectors, dtype=torch.float))
+                         for text_ints, mr_bitvectors in zip(test_text_ints, test_mr_bitvectors)]
+
+            logger.info(f"Test error: {ser_classifier.evaluate(ser_pairs):0.2f}")
 
 
 class SingleVocabMultitaskSeq2SeqGenerator(MultitaskSeq2SeqGenerator):
