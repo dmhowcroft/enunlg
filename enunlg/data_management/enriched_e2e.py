@@ -93,6 +93,19 @@ class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
     def __init__(self, seq: List[EnrichedE2EItem], metadata=None):
         super(EnrichedE2ECorpus, self).__init__(seq, metadata)
 
+    def validate_enriched_e2e(self) -> None:
+        entries_to_drop = []
+        for idx, entry in enumerate(self):
+            # Some of the EnrichedE2E entries have incorrect semantics.
+            # Checking for the restaurant name in the input selections is the fastest way to check.
+            if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
+                pass
+            else:
+                entries_to_drop.append(idx)
+        for idx in reversed(entries_to_drop):
+            self.pop(idx)
+
+
 
 def extract_raw_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
     mr = {}
@@ -289,16 +302,3 @@ LINEARIZATION_FUNCTIONS = {'raw_input': linearize_slot_value_mr,
                            'lexicalisation': lambda lex_string: lex_string.strip().split(),
                            'referring_expressions': lambda reg_string: reg_string.strip().split(),
                            'raw_output': lambda text: text.strip().split()}
-
-
-def validate_enriched_e2e(corpus) -> None:
-    entries_to_drop = []
-    for idx, entry in enumerate(corpus):
-        # Some of the EnrichedE2E entries have incorrect semantics.
-        # Checking for the restaurant name in the input selections is the fastest way to check.
-        if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
-            pass
-        else:
-            entries_to_drop.append(idx)
-    for idx in reversed(entries_to_drop):
-        corpus.pop(idx)
