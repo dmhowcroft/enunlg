@@ -42,5 +42,8 @@ class MultivaluedDA(DialogueAct):
         """Create a MultivalueDA when we have an iterable of slot-value pairs rather than a ready-to-go Box."""
         slot_value_box = box.Box(default_box=True, default_box_attr=list)
         for slot, value in slot_values:
-            slot_value_box[slot].append(value)
+            if slot in slot_value_box:
+                slot_value_box[slot].append(value)
+            else:
+                slot_value_box[slot] = [value]
         return MultivaluedDA(act_type, slot_value_box)
