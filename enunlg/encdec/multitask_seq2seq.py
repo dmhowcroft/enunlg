@@ -128,14 +128,18 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         :param teacher_forcing:
         :param teacher_forcing_sync_layers:
         """
-        logger.debug(enc_emb.size())
+        # logger.debug(enc_emb.size())
         enc_outputs, enc_h_c_states = self.encode(enc_emb)
-        logger.debug(f"{len(enc_outputs)=}")
-        for x in enc_outputs:
-            logger.debug(x.size())
-        logger.debug(f"{len(enc_h_c_states)=}")
-        for x in enc_h_c_states:
-            logger.debug(f"{x[0].size()=}, {x[1].size()=}")
+        # logger.debug(f"{len(enc_outputs)=}")
+        # for x in enc_outputs:
+        #     logger.debug(x.size())
+        # # logger.debug(f"{len(enc_h_c_states)=}")
+        # for x in enc_h_c_states:
+        #     logger.debug(f"{x[0].size()=}, {x[1].size()=}")
+        #
+        # logger.debug(f"{len(dec_emb)=}")
+        # for x in dec_emb:
+        #     logger.debug(x.size())
 
         logger.debug(f"{len(dec_emb)=}")
         for x in dec_emb:
