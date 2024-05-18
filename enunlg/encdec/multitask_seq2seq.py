@@ -141,18 +141,18 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         # for x in dec_emb:
         #     logger.debug(x.size())
 
-        logger.debug(f"{len(dec_emb)=}")
-        for x in dec_emb:
-            logger.debug(x.size())
-
+        # it should be possible to parallelise the decoders for the different layers -- each one is autoregressive,
+        # but they are independent of each other
+        # We probs can't easily parallelise on the CPU, but we can save the function calls to enumerate and zip at least?
         outputs = []
-        for idx, (layer_name, enc_output, enc_h_c_state, layer_dec_emb) in enumerate(zip(self.layer_names[1:], enc_outputs, enc_h_c_states, dec_emb), 1):
-            dec_h_c_state = enc_h_c_state
+        # for layer_idx, (layer_name, enc_output, enc_h_c_state, layer_dec_emb) in enumerate(zip(self.layer_names[1:], enc_outputs, enc_h_c_states, dec_emb), 1):
+        for layer_idx in range(len(dec_emb)):
+            dec_h_c_state = enc_h_c_states[layer_idx]
             # Use torch.zeros because we use padding_idx = 0
-            dec_outputs = torch.zeros((len(layer_dec_emb), self.layer_vocab_sizes[idx]))
-            dec_outputs[0] = layer_dec_emb[0]
-            for dec_input_index, dec_input in enumerate(layer_dec_emb[:-1]):
-                dec_output, dec_h_c_state = self.task_decoders[layer_name](dec_input, dec_h_c_state, enc_output)
+            dec_outputs = torch.zeros((len(dec_emb[layer_idx]), self.layer_vocab_sizes[layer_idx]))
+            dec_outputs[0] = dec_emb[layer_idx][0]
+            for dec_input_index in range(len(dec_emb[layer_idx]) - 1):
+                dec_output, dec_h_c_state = self.task_decoders[self.layer_names[layer_idx + 1]](dec_emb[layer_idx][dec_input_index], dec_h_c_state, enc_outputs[layer_idx])
                 dec_outputs[dec_input_index + 1] = dec_output
             outputs.append(dec_outputs)
         return outputs
@@ -189,10 +189,10 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         optimizer.zero_grad()
 
         dec_outputs = self.forward_multitask(enc_emb, dec_emb)
-        log_list_of_tensors_sizes(dec_outputs)
+        # log_list_of_tensors_sizes(dec_outputs)
 
         dec_targets = [torch.tensor([x.unsqueeze(0) for x in task]) for task in dec_emb]
-        log_list_of_tensors_sizes(dec_targets)
+        # log_list_of_tensors_sizes(dec_targets)
 
         loss = criterion(dec_outputs[0], dec_targets[0])
         for outputs, targets in zip(dec_outputs[1:], dec_targets[1:]):
