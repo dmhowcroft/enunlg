@@ -4,6 +4,8 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple,
 import logging
 import random
 
+from enunlg.meaning_representation.slot_value import SlotValueMR
+
 import enunlg.data_management.iocorpus
 
 logger = logging.getLogger(__name__)
@@ -103,7 +105,13 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
             for entry in self:
                 if entry[layer] is not None:
                     layer_lengths[layer].append(len(entry[layer]))
-                    layer_types[layer].update(entry[layer])
+                    if isinstance(entry[layer], SlotValueMR):
+                        layer_types[layer].update(entry[layer].as_frozen())
+                    elif isinstance(entry[layer], tuple):
+                        if all(isinstance(x, SlotValueMR) for x in entry[layer]):
+                            layer_types[layer].update(tuple(x.as_frozen() for x in entry[layer]))
+                    else:
+                        layer_types[layer].update(entry[layer])
                     num_entries_per_layer[layer] += 1
                 else:
                     print("None type found for the entry {}".format(entry))
