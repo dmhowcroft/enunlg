@@ -25,6 +25,7 @@ logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
 
 
 def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
+    torch.device("cpu")
     enunlg.util.set_random_seeds(config.random_seed)
 
     corpus = load_data_from_config(config.data, config.train.train_splits)
@@ -41,13 +42,17 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 
     slot_value_format_corpus = deepcopy(corpus)
     slot_value_format_dev_corpus = deepcopy(dev_corpus)
-    if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
-        enunlg.util.translate_e2e_to_rdf(corpus)
-        enunlg.util.translate_e2e_to_rdf(dev_corpus)
+    if config.data.corpus.name == "e2e-enriched":
+        corpus.delexicalise_by_slot_name(slots=('name', 'near'))
+        dev_corpus.delexicalise_by_slot_name(slots=('name', 'near'))
+        if config.data.input_mode == "rdf":
+            enunlg.util.translate_e2e_to_rdf(corpus)
+            enunlg.util.translate_e2e_to_rdf(dev_corpus)
     elif config.data.corpus.name == "webnlg-enriched":
         sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
         sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
         corpus.delexicalise_with_sem_classes(sem_class_lower)
+        dev_corpus.delexicalise_with_sem_classes(sem_class_lower)
 
     if config.data.input_mode == "rdf":
         linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS

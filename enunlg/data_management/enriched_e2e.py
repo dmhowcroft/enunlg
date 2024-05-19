@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections.abc import MutableMapping
+from copy import deepcopy
 from typing import Iterable, List, Optional, Tuple, Union
 
 import difflib
@@ -88,6 +89,56 @@ class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
     def __init__(self, annotation_layers):
         super().__init__(annotation_layers)
 
+    def delex_slots(self, slots):
+        if self.can_delex(slots):
+            for layer_name in self.annotation_layers:
+                layer = self[layer_name]
+                for slot in slots:
+                    if slot not in self['raw_input']:
+                        continue
+                    value = self['raw_input'][slot]
+                    orig_tag = f"__{slot.upper()}__"
+                    if isinstance(layer, SlotValueMR):
+                        layer.delex_slot(slot)
+                    elif isinstance(layer, tuple):
+                        if all(isinstance(element, SlotValueMR) for element in layer):
+                            for element in layer:
+                                element.delex_slot(slot)
+                    elif isinstance(layer, str):
+                        if layer_name == 'raw_output':
+                            self[layer_name] = layer.replace(value, orig_tag).replace(value.replace("_", " "), orig_tag)
+                    else:
+                        raise ValueError(f"Unexpected type for this layer: {type(layer)}")
+        else:
+            print(f"could not delex {slots}")
+
+    def can_delex(self, slots):
+        can_delex = True
+        for layer_name in self.annotation_layers:
+            layer = self[layer_name]
+            for slot in slots:
+                if slot not in self['raw_input']:
+                    continue
+                value = self['raw_input'][slot]
+                orig_tag = f"__{slot.upper()}__"
+                if isinstance(layer, SlotValueMR):
+                    if not layer.can_delex(slot):
+                        can_delex = False
+                elif isinstance(layer, tuple):
+                    if all(isinstance(element, SlotValueMR) for element in layer):
+                        if not any(element.can_delex(slot) for element in layer):
+                            can_delex = False
+                elif isinstance(layer, str):
+                    if layer_name == 'lexicalisation':
+                        if orig_tag not in self[layer_name]:
+                            can_delex = False
+                    else:
+                        if value.replace("_", " ") not in self[layer_name]:
+                            can_delex = False
+                else:
+                    raise ValueError(f"Unexpected type for this layer: {type(layer)}")
+        return can_delex
+
 
 class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
     def __init__(self, seq: List[EnrichedE2EItem], metadata=None):
@@ -105,13 +156,29 @@ class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
         for idx in reversed(entries_to_drop):
             self.pop(idx)
 
+    def delexicalise_by_slot_name(self, slots):
+        undelexicalisable_entries = []
+        for idx, entry in enumerate(self):
+            logger.debug("-=-=-=-=-=-=-=-==-")
+            logger.debug(f"Attempting to delex entry #{idx}")
+            logger.debug(entry)
+            orig_entry = deepcopy(entry)
+            if entry.can_delex(slots):
+                entry.delex_slots(slots)
+            if repr(orig_entry) == repr(entry):
+                undelexicalisable_entries.append(idx)
+            if any(f"__{x.upper()}__" in entry['lexicalisation'] for x in slots):
+                logger.debug(f"could not fully delexicalise the lexicalisation layer for {entry}")
+        logger.info(f"We had to discard {len(undelexicalisable_entries)} entries as undelexicalisable.")
+        for idx in reversed(undelexicalisable_entries):
+            self.pop(idx)
 
 
 def extract_raw_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
     mr = {}
     for source_input in entry.source.inputs:
         mr[source_input.attribute] = source_input.value
-    return [SlotValueMR(mr, frozen_box=True)]
+    return [SlotValueMR(mr)]  #, frozen_box=True)]
 
 
 def extract_selected_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
@@ -121,7 +188,7 @@ def extract_selected_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
         for sentence in target.structuring.sentences:
             for input_element in sentence.content:
                 mr[input_element.attribute] = input_element.value
-        targets.append(SlotValueMR(mr, frozen_box=True))
+        targets.append(SlotValueMR(mr))  # , frozen_box=True))
     return targets
 
 
@@ -132,7 +199,7 @@ def extract_ordered_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
         for sentence in target.structuring.sentences:
             for input_element in sentence.content:
                 mr[input_element.attribute] = input_element.value
-        targets.append(SlotValueMR(mr, frozen_box=True))
+        targets.append(SlotValueMR(mr))  # , frozen_box=True))
     return targets
 
 
@@ -144,7 +211,7 @@ def extract_sentence_segmented_input(entry: EnrichedE2EEntry) -> List[Tuple[Slot
             mr = {}
             for input_element in sentence.content:
                 mr[input_element.attribute] = input_element.value
-            selected_inputs.append(SlotValueMR(mr, frozen_box=True))
+            selected_inputs.append(SlotValueMR(mr))  # , frozen_box=True))
         targets.append(tuple(selected_inputs))
     return targets
 
