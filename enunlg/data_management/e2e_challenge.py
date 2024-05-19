@@ -63,7 +63,7 @@ class E2ECorpus(iocorpus.IOCorpus):
         text_types = set()
         for item in self:
             mr_lengths.append(len(item.mr))
-            mr_types.add(item.mr)
+            mr_types.add(item.mr.as_frozen())
             text_lengths.append(len(item.text.split()))
             text_types.add(tuple(item.text.split()))
 
