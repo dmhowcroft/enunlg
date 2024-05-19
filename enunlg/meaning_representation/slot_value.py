@@ -16,6 +16,18 @@ class SlotValueMR(box.Box):
     def __str__(self):
         return self.__repr__()
 
+    def as_frozen(self) -> "SlotValueMR":
+        return SlotValueMR(self, frozen_box=True)
+
+    def delex_slot(self, slot: str) -> None:
+        """`slot` will be replaced by f"__{slot.upper()}__" if it is present in the MR"""
+        if slot in self:
+            self[slot] = f"__{slot.upper()}__"
+
+    def can_delex(self, slot) -> bool:
+        """Checks that `slot` is a key in this MR"""
+        return slot in self
+
 
 class MultivaluedSlotValueMR(box.Box):
     def __init__(self, *args, **kwargs):
