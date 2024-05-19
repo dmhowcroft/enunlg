@@ -37,11 +37,14 @@ def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipeline
     pipeline_corpus = load_data_from_config(config, splits=["dev"])
 
     if config.corpus.name == "e2e-enriched":
-        enunlg.data_management.enriched_e2e.validate_enriched_e2e(pipeline_corpus)
-
-    sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
-    sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
-    pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)
+        pipeline_corpus.validate_enriched_e2e()
+        pipeline_corpus.delexicalise_by_slot_name(('name', 'near'))
+        if config.input_mode == "rdf":
+            enunlg.util.translate_e2e_to_rdf(pipeline_corpus)
+    elif config.corpus.name == "webnlg-enriched":
+        sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
+        sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
+        pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)
 
 
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
@@ -52,7 +55,7 @@ def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipeline
     return enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(pipeline_corpus, mapping_functions=linearization_functions)
 
 
-@hydra.main(version_base=None, config_path='../config/data', config_name='enriched-webnlg_as-rdf')
+@hydra.main(version_base=None, config_path='../config/data', config_name='enriched-e2e_as-rdf')
 def prep_pipeline_corpus_main(config: omegaconf.DictConfig) -> None:
     # Add Hydra-managed output dir to the config dictionary
     hydra_config = hydra.core.hydra_config.HydraConfig.get()
@@ -63,8 +66,8 @@ def prep_pipeline_corpus_main(config: omegaconf.DictConfig) -> None:
 
     corpus = prep_corpus(config)
 
-    corpus.write_to_iostream(Path("webnlg.delex.tmp").open("w"))
-    # corpus.write_to_iostream(sys.stdout)
+    # corpus.write_to_iostream(Path("webnlg.delex.tmp").open("w"))
+    corpus.write_to_iostream(sys.stdout)
 
 
 if __name__ == "__main__":
