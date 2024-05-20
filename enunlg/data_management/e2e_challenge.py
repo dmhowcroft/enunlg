@@ -8,6 +8,8 @@ import box
 import omegaconf
 import regex
 
+from enunlg.meaning_representation.slot_value import SlotValueMR
+
 import enunlg.data_management.iocorpus as iocorpus
 
 logger = logging.getLogger(__name__)
@@ -34,10 +36,10 @@ MR_VALUE_CHARS = r"[A-Za-z0-9_\-,$£ é]+"
 
 
 class E2EPair(iocorpus.IOPair):
-    mr: box.Box
+    mr: SlotValueMR
 
     def sort_mr(self, in_place: bool = True) -> Optional[dict]:
-        sorted_mr = box.Box({key: self.mr[key] for key, _ in sorted(self.mr.items())})
+        sorted_mr = SlotValueMR({key: self.mr[key] for key, _ in sorted(self.mr.items())})
         if in_place:
             self.mr = sorted_mr
         else:
@@ -88,7 +90,7 @@ def parse_mr(e2e_mr: str) -> box.Box:
             facts[mo.group(1)] = mo.group(2)
             e2e_mr = regex.sub(MR_DELIM_CHARS, '', e2e_mr[mo.span(0)[1]:])
         loop_check += 1
-    return box.Box(facts, frozen_box=True)
+    return SlotValueMR(facts)
 
 
 def delexicalise_exact_matches(pair: E2EPair, fields_to_delex: Optional[Iterable] = None) -> E2EPair:
@@ -108,7 +110,7 @@ def delexicalise_exact_matches(pair: E2EPair, fields_to_delex: Optional[Iterable
                     replacement = f"X-{field}"
                     new_text = regex.sub(field_with_spaces, replacement, new_text)
                     new_mr[field] = replacement
-        return E2EPair(box.Box(new_mr, frozen_box=True), new_text)
+        return E2EPair(SlotValueMR(new_mr), new_text)
 
 
 def load_e2e_csv(filepath: str) -> List[Tuple[str, str]]:
