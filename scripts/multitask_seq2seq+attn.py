@@ -41,6 +41,8 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
             break
     logger.info(f"Dropping {len(indices_to_drop)} entries from the validation set for having too long an input rep.")
     for idx in reversed(indices_to_drop):
+        dev_corpus.pop(idx)
+        dev_slot_value_corpus.pop(idx)
         dev_text_corpus.pop(idx)
 
     # generator = SingleVocabMultitaskSeq2SeqGenerator(text_corpus, config.model)
@@ -90,30 +92,19 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
 
-    rich_corpus = load_data_from_config(config.data, config.test.test_splits)
-    rich_corpus.print_summary_stats()
-    print("____________")
+    corpus, slot_value_corpus, text_corpus = enunlg.data_management.loader.prep_pipeline_corpus(config.data, config.train.train_splits)
 
-
-    if config.data.corpus.name == "e2e-enriched":
-        # Drop entries that are missing data
-        enunlg.data_management.enriched_e2e.validate_enriched_e2e(rich_corpus)
-
-    if config.data.corpus.name == "e2e-enriched" and config.data.input_mode == "rdf":
-        enunlg.util.translate_e2e_to_rdf(rich_corpus)
-    elif config.data.corpus.name == "webnlg-enriched":
-        sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
-        sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
-        rich_corpus.delexicalise_with_sem_classes(sem_class_lower)
-
-    if config.data.input_mode == "rdf":
-        linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
-    elif config.data.input_mode == "e2e":
-        linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
-    # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
-    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(rich_corpus, mapping_functions=linearization_functions)
-    text_corpus.print_summary_stats()
-    text_corpus.print_sample(0, 100, 10)
+    # drop entries that are too long
+    indices_to_drop = []
+    for idx, entry in enumerate(text_corpus):
+        if len(entry['raw_input']) > config.model.max_input_length - 2:
+            indices_to_drop.append(idx)
+            break
+    logger.info(f"Dropping {len(indices_to_drop)} entries from the validation set for having too long an input rep.")
+    for idx in reversed(indices_to_drop):
+        corpus.pop(idx)
+        text_corpus.pop(idx)
+        slot_value_corpus.pop(idx)
 
     generator = MultitaskSeq2SeqGenerator.load(config.test.generator_file)
     total_parameters = enunlg.util.count_parameters(generator.model)
@@ -121,7 +112,7 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
         exit()
 
     ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
-    generator.evaluate(rich_corpus, text_corpus, ser_classifier)
+    generator.evaluate(slot_value_corpus, text_corpus, ser_classifier)
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')
