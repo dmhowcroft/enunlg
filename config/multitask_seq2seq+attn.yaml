@@ -8,7 +8,7 @@ data:
   input_mode: e2e
 model:
   name: multitask_seq2seq+attn
-  max_input_length: 80
+  max_input_length: 45
   encoder:
     embeddings:
       type: "torch"
