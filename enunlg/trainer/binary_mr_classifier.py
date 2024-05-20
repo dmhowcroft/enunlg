@@ -4,6 +4,8 @@ import logging
 import random
 import time
 
+from tqdm import tqdm
+
 import numpy as np
 import omegaconf
 import torch
@@ -76,7 +78,7 @@ class BinaryMRClassifierTrainer(BasicTrainer):
             self._curr_epoch = epoch
             self._log_epoch_begin_stats()
             random.shuffle(pairs)
-            for index, (text_ints, mr_onehot) in enumerate(pairs, start=1):
+            for index, (text_ints, mr_onehot) in tqdm(enumerate(pairs, start=1)):
                 loss = self.model.train_step(text_ints, mr_onehot, self.optimizer, self.loss)
                 self.log_training_loss(float(loss), epoch * len(pairs) + index)
                 self.log_parameter_gradients(epoch * len(pairs) + index)
