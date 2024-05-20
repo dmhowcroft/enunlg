@@ -23,53 +23,16 @@ import enunlg.vocabulary
 
 logger = logging.getLogger('enunlg-scripts.multitask_seq2seq+attn')
 
+SUPPORTED_DATASETS = {"enriched-e2e", "enriched-webnlg"}
+
 
 def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     torch.device("cpu")
     enunlg.util.set_random_seeds(config.random_seed)
 
-    corpus = load_data_from_config(config.data, config.train.train_splits)
-    corpus.print_summary_stats()
-    print("____________")
-    dev_corpus = load_data_from_config(config.data, config.train.dev_splits)
-    dev_corpus.print_summary_stats()
-    print("____________")
+    corpus, slot_value_corpus, text_corpus = enunlg.data_management.loader.prep_pipeline_corpus(config.data, config.train.train_splits)
+    dev_corpus, dev_slot_value_corpus, dev_text_corpus = enunlg.data_management.loader.prep_pipeline_corpus(config.data, config.train.dev_splits)
 
-    if config.data.corpus.name == "e2e-enriched":
-        # Drop entries that are missing data
-        corpus.validate_enriched_e2e()
-        dev_corpus.validate_enriched_e2e()
-
-    slot_value_format_corpus = deepcopy(corpus)
-    slot_value_format_dev_corpus = deepcopy(dev_corpus)
-    if config.data.corpus.name == "e2e-enriched":
-        corpus.delexicalise_by_slot_name(slots=('name', 'near'))
-        dev_corpus.delexicalise_by_slot_name(slots=('name', 'near'))
-        if config.data.input_mode == "rdf":
-            enunlg.util.translate_e2e_to_rdf(corpus)
-            enunlg.util.translate_e2e_to_rdf(dev_corpus)
-    elif config.data.corpus.name == "webnlg-enriched":
-        sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
-        sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
-        corpus.delexicalise_with_sem_classes(sem_class_lower)
-        dev_corpus.delexicalise_with_sem_classes(sem_class_lower)
-
-    if config.data.input_mode == "rdf":
-        linearization_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
-        linearization_metadata = "enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS"
-    elif config.data.input_mode == "e2e":
-        linearization_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
-        linearization_metadata = "enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS"
-    # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
-    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(corpus, mapping_functions=linearization_functions)
-    text_corpus.metadata['linearization_functions'] = linearization_metadata
-    text_corpus.print_summary_stats()
-    text_corpus.print_sample(0, 100, 10)
-
-    dev_text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(dev_corpus, mapping_functions=linearization_functions)
-    dev_text_corpus.metadata['linearization_functions'] = linearization_metadata
-    dev_text_corpus.print_summary_stats()
-    dev_text_corpus.print_sample(0, 100, 10)
     # drop entries that are too long
     indices_to_drop = []
     for idx, entry in enumerate(dev_text_corpus):
