@@ -109,6 +109,9 @@ class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
                             self[layer_name] = layer.replace(value, orig_tag).replace(value.replace("_", " "), orig_tag)
                     else:
                         raise ValueError(f"Unexpected type for this layer: {type(layer)}")
+            for slot in self['raw_input']:
+                if slot not in slots:
+                    self['lexicalisation'] = self['lexicalisation'].replace(f"__{slot.upper()}__", self['raw_input'][slot])
         else:
             print(f"could not delex {slots}")
 
