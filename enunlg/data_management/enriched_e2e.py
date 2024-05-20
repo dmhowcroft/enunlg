@@ -311,7 +311,6 @@ def load_enriched_e2e(enriched_e2e_config: omegaconf.DictConfig, splits: Optiona
                                                  'ordered-input': extract_ordered_input,
                                                  'sentence-segmented-input': extract_sentence_segmented_input,
                                                  'lexicalisation': extract_lexicalization,
-                                                 'referring-expressions': extract_reg_in_lex,
                                                  'raw-output': extract_raw_output})
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
