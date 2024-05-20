@@ -112,16 +112,16 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 
     trainer.train_iterations(multitask_training_pairs, multitask_validation_pairs)
 
+    generator.save(os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.nlg"))
+
     ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
     logger.info("===============================================")
     logger.info("Calculating performance on the training data...")
-    generator.evaluate(slot_value_format_corpus, text_corpus, ser_classifier)
+    generator.evaluate(slot_value_corpus, text_corpus, ser_classifier)
 
     logger.info("===============================================")
     logger.info("Calculating performance on the validation data...")
-    generator.evaluate(slot_value_format_dev_corpus, dev_text_corpus, ser_classifier)
-
-    generator.save(os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.nlg"))
+    generator.evaluate(dev_slot_value_corpus, dev_text_corpus, ser_classifier)
 
 
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
