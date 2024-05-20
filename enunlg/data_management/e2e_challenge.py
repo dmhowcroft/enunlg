@@ -103,11 +103,11 @@ def delexicalise_exact_matches(pair: E2EPair, fields_to_delex: Optional[Iterable
             if field in new_mr:
                 field_with_spaces = "".join([(" "+i if i.isupper() else i) for i in new_mr[field]]).strip()
                 if new_mr[field] in new_text:
-                    replacement = f"X-{field}"
+                    replacement = f"__{field.upper()}__"
                     new_text = regex.sub(new_mr[field], replacement, new_text)
                     new_mr[field] = replacement
                 elif field_with_spaces in new_text:
-                    replacement = f"X-{field}"
+                    replacement = f"__{field.upper()}__"
                     new_text = regex.sub(field_with_spaces, replacement, new_text)
                     new_mr[field] = replacement
         return E2EPair(SlotValueMR(new_mr), new_text)
