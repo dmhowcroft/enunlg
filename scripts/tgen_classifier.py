@@ -1,6 +1,5 @@
 """Script for running the TGen NLU classifier."""
 
-from collections import defaultdict
 from pathlib import Path
 
 import json
@@ -12,7 +11,6 @@ import torch
 
 from enunlg.convenience.binary_mr_classifier import FullBinaryMRClassifier
 from enunlg.data_management.loader import load_data_from_config
-from enunlg.meaning_representation.slot_value import SlotValueMR
 from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg
@@ -22,6 +20,7 @@ import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.trainer.binary_mr_classifier
 import enunlg.util
 import enunlg.vocabulary
+from util import rdf_to_slot_value_list
 
 logger = logging.getLogger("enunlg-scripts.tgen_classifier")
 
@@ -60,28 +59,6 @@ def preprocess(corpus, preprocessing_config):
         logger.info("Sorting slot-value pairs in the MR to ignore order...")
         corpus.sort_mr_elements()
     return corpus
-
-
-def rdf_to_mr(rdf_triple_list):
-    grouped_by_name = defaultdict(list)
-    for triple in rdf_triple_list:
-        grouped_by_name[triple.subject].append((triple.predicate, triple.subject))
-    mr_list = []
-    for entity in grouped_by_name:
-        mr = {'name': entity}
-        for slot, value in grouped_by_name[entity]:
-            mr[slot] = value
-        mr_list.append(mr)
-    mr_list = [SlotValueMR(mr) for mr in mr_list]
-    return mr_list
-
-
-def rdf_to_slot_value_list(rdf_triple_list):
-    sv_set = set()
-    for triple in rdf_triple_list:
-        sv_set.add(('name', triple.subject))
-        sv_set.add((triple.predicate, triple.object))
-    return sv_set
 
 
 def rejoin_sem_classes(text):

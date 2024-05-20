@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import TYPE_CHECKING
 
 import collections
@@ -5,6 +6,8 @@ import logging
 import random
 
 import torch
+
+from meaning_representation.slot_value import SlotValueMR, SlotValueMRList
 
 logger = logging.getLogger(__name__)
 
@@ -79,3 +82,35 @@ def translate_e2e_to_rdf(corpus) -> None:
             sent_mr_dict['name'] = agent
             sentence_mrs.append(mr_to_rdf(sent_mr_dict))
         entry.sentence_segmented_input = sentence_mrs
+
+
+def translate_rdf_to_e2e(corpus) -> None:
+    for entry in corpus:
+        entry.raw_input = rdf_to_mr_list(entry.raw_input)
+        entry.selected_input = rdf_to_mr_list(entry.selected_input)
+        entry.ordered_input = rdf_to_mr_list(entry.ordered_input)
+        sent_mr_lists = []
+        for sent_rdf_list in entry.sentence_segmented_input:
+            sent_mr_lists.append(rdf_to_mr_list(sent_rdf_list))
+        entry.sentence_segmented_input = sent_mr_lists
+
+
+def rdf_to_slot_value_list(rdf_triple_list):
+    sv_set = set()
+    for triple in rdf_triple_list:
+        sv_set.add(('name', triple.subject))
+        sv_set.add((triple.predicate, triple.object))
+    return sv_set
+
+
+def rdf_to_mr_list(rdf_triple_list) -> SlotValueMRList:
+    grouped_by_name = defaultdict(list)
+    for triple in rdf_triple_list:
+        grouped_by_name[triple.subject].append((triple.predicate, triple.subject))
+    mr_list = []
+    for entity in grouped_by_name:
+        mr = {'name': entity}
+        for slot, value in grouped_by_name[entity]:
+            mr[slot] = value
+        mr_list.append(mr)
+    return SlotValueMRList([SlotValueMR(mr) for mr in mr_list])
