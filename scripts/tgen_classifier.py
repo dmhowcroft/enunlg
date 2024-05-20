@@ -1,7 +1,9 @@
 """Script for running the TGen NLU classifier."""
 
+from collections import defaultdict
 from pathlib import Path
 
+import json
 import logging
 
 import hydra
@@ -10,6 +12,7 @@ import torch
 
 from enunlg.convenience.binary_mr_classifier import FullBinaryMRClassifier
 from enunlg.data_management.loader import load_data_from_config
+from enunlg.meaning_representation.slot_value import SlotValueMR
 from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg
@@ -36,7 +39,7 @@ def prep_tgen_text_integer_reps(input_corpus):
     """
     return enunlg.vocabulary.TokenVocabulary([text.strip().split() for _, text in input_corpus])
 
-SUPPORTED_DATASETS = {"e2e", "e2e-cleaned"}
+SUPPORTED_DATASETS = {"e2e", "e2e-cleaned", "enriched-webnlg"}
 
 
 def preprocess(corpus, preprocessing_config):
@@ -57,6 +60,52 @@ def preprocess(corpus, preprocessing_config):
         logger.info("Sorting slot-value pairs in the MR to ignore order...")
         corpus.sort_mr_elements()
     return corpus
+
+
+def rdf_to_mr(rdf_triple_list):
+    grouped_by_name = defaultdict(list)
+    for triple in rdf_triple_list:
+        grouped_by_name[triple.subject].append((triple.predicate, triple.subject))
+    mr_list = []
+    for entity in grouped_by_name:
+        mr = {'name': entity}
+        for slot, value in grouped_by_name[entity]:
+            mr[slot] = value
+        mr_list.append(mr)
+    mr_list = [SlotValueMR(mr) for mr in mr_list]
+    return mr_list
+
+
+def rdf_to_slot_value_list(rdf_triple_list):
+    sv_set = set()
+    for triple in rdf_triple_list:
+        sv_set.add(('name', triple.subject))
+        sv_set.add((triple.predicate, triple.object))
+    return sv_set
+
+
+def rejoin_sem_classes(text):
+    out_list = []
+    curr_token = ""
+    for token in text.strip().split():
+        if token == "__":
+            if curr_token.startswith("__"):
+                out_list.append(f"{curr_token}{token}")
+                curr_token = ""
+            elif curr_token == "":
+                curr_token = token
+        else:
+            if curr_token == "":
+                out_list.append(token)
+            else:
+                curr_token = f"{curr_token}{token}"
+    return " ".join(out_list)
+
+
+def webnlg_to_e2e(corpus):
+    return e2e.E2ECorpus([e2e.E2EPair(rdf_to_slot_value_list(entry.raw_input),
+                                      rejoin_sem_classes(TGenTokeniser.tokenize(entry.raw_output)))
+                          for entry in corpus])
     
 
 @hydra.main(version_base=None, config_path='../config', config_name='tgen_classifier')
@@ -86,18 +135,36 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     corpus = load_data_from_config(config.data, config.train.train_splits)
     corpus.print_summary_stats()
     print("____________")
-    validation_corpus = load_data_from_config(config.data, config.train.dev_splits)
-    validation_corpus.print_summary_stats()
+    dev_corpus = load_data_from_config(config.data, config.train.dev_splits)
+    dev_corpus.print_summary_stats()
     print("____________")
 
+    if config.data.corpus.name == "webnlg-enriched":
+        sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
+        sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
+        corpus.delexicalise_with_sem_classes(sem_class_lower)
+        dev_corpus.delexicalise_with_sem_classes(sem_class_lower)
+        corpus = webnlg_to_e2e(corpus)
+        dev_corpus = webnlg_to_e2e(dev_corpus)
+
     corpus = preprocess(corpus, config.preprocessing)
-    validation_corpus = preprocess(validation_corpus, config.preprocessing)
+    dev_corpus = preprocess(dev_corpus, config.preprocessing)
+    if config.data.corpus.name == "webnlg-enriched":
+        for entry in corpus:
+            entry.text = rejoin_sem_classes(entry.text)
+        for entry in dev_corpus:
+            entry.text = rejoin_sem_classes(entry.text)
 
     logger.info("Preparing training data for PyTorch...")
     # Prepare input integer representation
     token_int_mapper = prep_tgen_text_integer_reps(corpus)
     # Prepare bitvector encoding
-    multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in corpus]
+    if config.data.corpus.name == "webnlg-enriched":
+        multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', list(mr)) for mr, _ in corpus]
+        dev_multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', list(mr)) for mr, _ in dev_corpus]
+    else:
+        multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in corpus]
+        dev_multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in dev_corpus]
     bitvector_encoder = enunlg.embeddings.binary.DialogueActEmbeddings(multi_da_mrs, collapse_values=False)
 
     # Prepare text/output integer representation
@@ -126,8 +193,7 @@ def train_tgen_classifier(config: omegaconf.DictConfig, shortcircuit=None):
     training_pairs = [(torch.tensor(enc_emb, dtype=torch.long),
                        torch.tensor(dec_emb, dtype=torch.float))
                       for enc_emb, dec_emb in zip(train_text_ints, train_mr_bitvectors)]
-    dev_text_ints = [token_int_mapper.get_ints_with_left_padding(text.split()) for _, text in validation_corpus]
-    dev_multi_da_mrs = [das.MultivaluedDA.from_slot_value_list('inform', mr.items()) for mr, _ in validation_corpus]
+    dev_text_ints = [token_int_mapper.get_ints_with_left_padding(text.split()) for _, text in dev_corpus]
     dev_mr_bitvectors = [bitvector_encoder.embed_da(mr) for mr in dev_multi_da_mrs]
     validation_pairs = [(torch.tensor(enc_emb, dtype=torch.long),
                         torch.tensor(dec_emb, dtype=torch.float))
