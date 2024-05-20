@@ -7,7 +7,7 @@ import random
 
 import torch
 
-from meaning_representation.slot_value import SlotValueMR, SlotValueMRList
+from enunlg.meaning_representation.slot_value import SlotValueMR, SlotValueMRList
 
 logger = logging.getLogger(__name__)
 
