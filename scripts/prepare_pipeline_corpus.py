@@ -22,17 +22,6 @@ logger = logging.getLogger('enunlg-scripts.prepare_pipeline_corpus')
 SUPPORTED_DATASETS = {"enriched-e2e", "enriched-webnlg"}
 
 
-def sem_class_dict_from_mille(json_filepath, sem_class_type: str = 'class_dbp'):
-    with Path(json_filepath).open('r') as json_file:
-        sem_class_data = json.load(json_file)
-    sem_class_lower = {}
-    for k in sem_class_data:
-        curr_val = sem_class_data[k][sem_class_type]
-        if curr_val not in ("", "—"):
-            sem_class_lower[k.lower()] = curr_val
-    return sem_class_lower
-
-
 def prep_corpus(config: omegaconf.DictConfig) -> enunlg.data_management.pipelinecorpus.TextPipelineCorpus:
     pipeline_corpus = load_data_from_config(config, splits=["dev"])
 
