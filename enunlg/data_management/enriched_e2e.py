@@ -333,10 +333,17 @@ snake_case_regex = regex.compile('((?<=[a-z0-9])[A-Z]|(?!^)[A-Z](?=[a-z]))')
 
 def tokenize_slots_and_values(value):
     out_string = snake_case_regex.sub(r'_\1', value)
-    out_string = out_string.replace("_", " ").replace(",", " , ")
+    tokens = []
+    for token in out_string.split(" "):
+        if token.startswith("__") and token.endswith("__"):
+            tokens.append(token)
+        else:
+            tokens.append(token.replace("_", " ").replace(",", " , "))
+    out_string = " ".join(tokens)
     out_tokens = out_string.split()
     # omit empty strings caused by multiple spaces in a row
     return [token for token in out_tokens if token]
+
 
 def sanitize_slot_names(slot_name):
     return slot_name
