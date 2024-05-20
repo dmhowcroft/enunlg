@@ -106,7 +106,7 @@ def rdf_to_slot_value_list(rdf_triple_list):
 def rdf_to_mr_list(rdf_triple_list) -> SlotValueMRList:
     grouped_by_name = defaultdict(list)
     for triple in rdf_triple_list:
-        grouped_by_name[triple.subject].append((triple.predicate, triple.subject))
+        grouped_by_name[triple.subject].append((triple.predicate, triple.object))
     mr_list = []
     for entity in grouped_by_name:
         mr = {'name': entity}
