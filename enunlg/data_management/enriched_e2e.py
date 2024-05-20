@@ -13,7 +13,7 @@ import xsdata.formats.dataclass.parsers.handlers.lxml
 import xsdata.formats.dataclass.parsers as xsparsers
 
 from enunlg.formats.xml.enriched_e2e import EnrichedE2EEntries, EnrichedE2EEntry
-from enunlg.meaning_representation.slot_value import SlotValueMR
+from enunlg.meaning_representation.slot_value import SlotValueMR, SlotValueMRList
 from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg.data_management.pipelinecorpus
@@ -360,12 +360,12 @@ def linearize_slot_value_mr(mr: enunlg.meaning_representation.slot_value.SlotVal
     return tokens
 
 
-def linearize_slot_value_mr_seq(mrs):
+def linearize_slot_value_mr_seq(mrs, tag_label="SENTENCE"):
     tokens = []
     for mr in mrs:
-        tokens.append("<SENTENCE>")
+        tokens.append(f"<{tag_label}>")
         tokens.extend(linearize_slot_value_mr(mr))
-        tokens.append("</SENTENCE>")
+        tokens.append(f"</{tag_label}>")
     return tokens
 
 
@@ -373,6 +373,28 @@ LINEARIZATION_FUNCTIONS = {'raw_input': linearize_slot_value_mr,
                            'selected_input': linearize_slot_value_mr,
                            'ordered_input': linearize_slot_value_mr,
                            'sentence_segmented_input': linearize_slot_value_mr_seq,
-                           'lexicalisation': lambda lex_string: lex_string.strip().split(),
-                           'referring_expressions': lambda reg_string: reg_string.strip().split(),
+                           'lexicalisation': lambda lex_string: lex_string.strip().replace(" @ ", " ").split(),
+                           'referring_expressions': lambda reg_string: reg_string.strip().replace(" @ ", " ").split(),
                            'raw_output': lambda text: text.strip().split()}
+
+
+def linearize_slot_value_mr_list(mr_list: SlotValueMRList):
+    return linearize_slot_value_mr_seq(mr_list, "MR_LIST")
+
+
+def wrap_in_sentence_tags(list_of_mr_lists):
+    seq = []
+    for mr_list in list_of_mr_lists:
+        seq.append("<SENTENCE>")
+        seq.extend(linearize_slot_value_mr_list(mr_list))
+        seq.append("</SENTENCE>")
+    return seq
+
+
+LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS = {'raw_input': linearize_slot_value_mr_list,
+                                                'selected_input': linearize_slot_value_mr_list,
+                                                'ordered_input': linearize_slot_value_mr_list,
+                                                'sentence_segmented_input': wrap_in_sentence_tags,
+                                                'lexicalisation': lambda lex_string: lex_string.strip().replace(" @ ", " ").split(),
+                                                'referring_expressions': lambda reg_string: reg_string.strip().replace(" @ ", " ").split(),
+                                                'raw_output': lambda text: text.strip().split()}
