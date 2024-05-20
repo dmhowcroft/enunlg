@@ -29,6 +29,11 @@ class SlotValueMR(box.Box):
         return slot in self
 
 
+class SlotValueMRList(list):
+    def __init__(self, seq):
+        super().__init__(seq)
+
+
 class MultivaluedSlotValueMR(box.Box):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, default_box=True, default_box_attr=list, **kwargs)
