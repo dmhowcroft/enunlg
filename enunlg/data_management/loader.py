@@ -1,18 +1,22 @@
-from typing import TYPE_CHECKING, Optional
+from copy import deepcopy
+from pathlib import Path
+from typing import TYPE_CHECKING, Optional, List
 
+import json
 import logging
+
+import omegaconf
 
 import enunlg.data_management.cued
 import enunlg.data_management.e2e_challenge
 import enunlg.data_management.enriched_e2e
 import enunlg.data_management.enriched_webnlg
 
-if TYPE_CHECKING:
-    import omegaconf
 
 logger = logging.getLogger(__name__)
 
 SUPPORTED_DATASETS = {"e2e", "e2e-cleaned", "e2e-enriched", "webnlg-enriched", "sfx-restaurant"}
+SUPPORTED_PIPELINE_DATASETS = {"e2e-enriched", "webnlg-enriched"}
 
 
 def load_data_from_config(data_config: "omegaconf.DictConfig", splits, sem_class_delex: Optional[str] = None):
@@ -52,3 +56,43 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits, sem_class
     else:
         message = f"It should not be possible to get this error message. You tried to use {data_config.corpus.name}"
         raise ValueError(message)
+
+
+def prep_pipeline_corpus(config: omegaconf.DictConfig, splits: List[str], print_summaries: bool = True) -> tuple:
+    pipeline_corpus = load_data_from_config(config, splits)
+    if print_summaries:
+        pipeline_corpus.print_summary_stats()
+
+    if config.corpus.name == "e2e-enriched":
+        slot_value_corpus = deepcopy(pipeline_corpus)
+        pipeline_corpus.validate_enriched_e2e()
+        pipeline_corpus.delexicalise_by_slot_name(('name', 'near'))
+        if config.input_mode == "rdf":
+            enunlg.util.translate_e2e_to_rdf(pipeline_corpus)
+    elif config.corpus.name == "webnlg-enriched":
+        sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
+        sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
+        pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)
+        slot_value_corpus = deepcopy(pipeline_corpus)
+        # For some reason metadata doesn't get copied???
+        slot_value_corpus.metadata = pipeline_corpus.metadata
+        # It's not yet a slot-value corpus until we run this
+        enunlg.util.translate_rdf_to_e2e(slot_value_corpus)
+        if config.input_mode == "e2e":
+            pipeline_corpus = slot_value_corpus
+    else:
+        raise ValueError(f"Prepare pipeline corpus can only work with {SUPPORTED_PIPELINE_DATASETS}")
+
+    # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
+    if config.input_mode == "rdf":
+        linearisation_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
+    elif config.input_mode == "e2e":
+        linearisation_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
+        if config.corpus.name == "webnlg-enriched":
+            linearisation_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS
+    text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(pipeline_corpus, mapping_functions=linearisation_functions)
+    text_corpus.metadata['linearisation_functions'] = linearisation_functions
+    if print_summaries:
+        text_corpus.print_summary_stats()
+        text_corpus.print_sample(0, 100, 10)
+    return pipeline_corpus, slot_value_corpus, text_corpus
