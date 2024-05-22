@@ -59,18 +59,20 @@ class FullBinaryMRClassifier(object):
                 curr_obj.save(f"{filepath}/{attribute}", tgz=False)
         if tgz:
             with tarfile.open(f"{filepath}.tgz", mode="x:gz") as out_file:
-                out_file.add(filepath, arcname=Path(filepath).parent)
+                out_file.add(filepath, arcname=Path(filepath).name)
 
     @classmethod
     def load(cls, filepath):
         if tarfile.is_tarfile(filepath):
-            with tarfile.open(filepath, 'r') as generator_file:
+            with tarfile.open(filepath, 'r') as classifier_file:
                 tmp_dir = tempfile.mkdtemp()
-                tarfile_member_names = generator_file.getmembers()
-                generator_file.extractall(tmp_dir)
-                root_name = Path(tarfile_member_names[0].name).parts[0]
-                root_dir = Path(tmp_dir) / root_name
-                return cls.load_from_dir(root_dir)
+                tarfile_member_names = classifier_file.getmembers()
+                classifier_file.extractall(tmp_dir)
+                # print([x.name for x in tarfile_member_names])
+                # root_name = Path(tarfile_member_names[0].name).parts[0]
+                # root_dir = Path(tmp_dir) / root_name
+                # print(root_dir)
+                return cls.load_from_dir(tmp_dir)
         elif Path(filepath).is_dir():
             return cls.load_from_dir(filepath)
         else:
