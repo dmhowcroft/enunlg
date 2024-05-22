@@ -23,6 +23,25 @@ def prep_pipeline_corpus_main(config: omegaconf.DictConfig) -> None:
     # text_corpus.write_to_iostream(Path("webnlg.delex.tmp").open("w"))
     # text_corpus.write_to_iostream(sys.stdout)
 
+    unique_entities = set()
+    unique_predicates = set()
+    unique_predicate_object_pairs = set()
+    for entry in sv_corpus:
+
+        mr_list = entry['raw_input']
+        print(mr_list)
+        for mr in mr_list:
+
+            unique_entities.add(mr.get('name'))
+            for slot in mr:
+                if slot != "name":
+                    unique_predicates.add(slot)
+                    unique_predicate_object_pairs.add((slot, mr[slot]))
+
+    print(len(unique_entities))
+    print(len(unique_predicates))
+    print(len(unique_predicate_object_pairs))
+
 
 if __name__ == "__main__":
     prep_pipeline_corpus_main()
