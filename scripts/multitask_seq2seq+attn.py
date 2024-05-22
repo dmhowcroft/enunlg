@@ -33,6 +33,10 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     corpus, slot_value_corpus, text_corpus = enunlg.data_management.loader.prep_pipeline_corpus(config.data, config.train.train_splits)
     dev_corpus, dev_slot_value_corpus, dev_text_corpus = enunlg.data_management.loader.prep_pipeline_corpus(config.data, config.train.dev_splits)
 
+    if config.data.drop_intermediate_layers:
+        for tmp_corpus in (corpus, slot_value_corpus, text_corpus, dev_corpus, dev_slot_value_corpus, dev_text_corpus):
+            tmp_corpus.drop_layers(keep=('raw_input', 'raw_output'))
+
     # drop entries that are too long
     indices_to_drop = []
     for idx, entry in enumerate(dev_text_corpus):
@@ -44,6 +48,9 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
         dev_corpus.pop(idx)
         dev_slot_value_corpus.pop(idx)
         dev_text_corpus.pop(idx)
+
+    text_corpus.write_to_iostream((Path(config.output_dir) / "text_corpus.nlg").open('w'))
+    dev_text_corpus.write_to_iostream((Path(config.output_dir) / "dev_text_corpus.nlg").open('w'))
 
     # generator = SingleVocabMultitaskSeq2SeqGenerator(text_corpus, config.model)
     generator = MultitaskSeq2SeqGenerator(text_corpus, config.model)
@@ -58,9 +65,9 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     # Section to be commented out normally, but useful for testing on small datasets
     # tmp_train_size = 50
     # tmp_dev_size = 10
-    # slot_value_format_corpus = slot_value_format_corpus[:tmp_train_size]
+    # slot_value_corpus = slot_value_corpus[:tmp_train_size]
     # text_corpus = text_corpus[:tmp_train_size]
-    # slot_value_format_dev_corpus = slot_value_format_dev_corpus[:tmp_dev_size]
+    # dev_slot_value_corpus = dev_slot_value_corpus[:tmp_dev_size]
     # dev_text_corpus = dev_text_corpus[:tmp_dev_size]
 
     input_embeddings, output_embeddings = generator.prep_embeddings(text_corpus, config.model.max_input_length - 2)
@@ -77,7 +84,7 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 
     trainer.train_iterations(multitask_training_pairs, multitask_validation_pairs)
 
-    generator.save(os.path.join(config.output_dir, f"trained_{generator.__class__.__name__}.nlg"))
+    generator.save(Path(config.output_dir) / f"trained_{generator.__class__.__name__}.nlg")
 
     ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
     logger.info("===============================================")
