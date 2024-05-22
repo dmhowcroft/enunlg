@@ -362,6 +362,16 @@ def linearize_slot_value_mr(mr: enunlg.meaning_representation.slot_value.SlotVal
     return tokens
 
 
+def linearize_slot_value_mr_simplified(mr: enunlg.meaning_representation.slot_value.SlotValueMR):
+    tokens = []
+    for slot in mr:
+        tokens.extend([x.lower() for x in tokenize_slots_and_values(slot)])
+        tokens.append("==")
+        tokens.extend(tokenize_slots_and_values(mr[slot]))
+        tokens.append("<PAIR_SEP>")
+    return tokens[:-1]
+
+
 def linearize_slot_value_mr_seq(mrs, tag_label="SENTENCE"):
     tokens = []
     for mr in mrs:
@@ -371,7 +381,15 @@ def linearize_slot_value_mr_seq(mrs, tag_label="SENTENCE"):
     return tokens
 
 
-LINEARIZATION_FUNCTIONS = {'raw_input': linearize_slot_value_mr,
+def linearize_slot_value_mr_seq_simplified(mrs, tag_label="SENTENCE"):
+    tokens = []
+    for mr in mrs:
+        tokens.extend(linearize_slot_value_mr_simplified(mr))
+        tokens.append(f"<{tag_label}_SEP>")
+    return tokens[:-1]
+
+
+ORIG_LINEARIZATION_FUNCTIONS = {'raw_input': linearize_slot_value_mr,
                            'selected_input': linearize_slot_value_mr,
                            'ordered_input': linearize_slot_value_mr,
                            'sentence_segmented_input': linearize_slot_value_mr_seq,
@@ -380,8 +398,17 @@ LINEARIZATION_FUNCTIONS = {'raw_input': linearize_slot_value_mr,
                            'raw_output': lambda text: text.strip().split()}
 
 
+LINEARIZATION_FUNCTIONS = {'raw_input': linearize_slot_value_mr_simplified,
+                           'selected_input': linearize_slot_value_mr_simplified,
+                           'ordered_input': linearize_slot_value_mr_simplified,
+                           'sentence_segmented_input': linearize_slot_value_mr_seq_simplified,
+                           'lexicalisation': lambda lex_string: lex_string.strip().replace(" @ ", " ").split(),
+                           'referring_expressions': lambda reg_string: reg_string.strip().replace(" @ ", " ").split(),
+                           'raw_output': lambda text: text.strip().split()}
+
+
 def linearize_slot_value_mr_list(mr_list: SlotValueMRList):
-    return linearize_slot_value_mr_seq(mr_list, "MR_LIST")
+    return linearize_slot_value_mr_seq_simplified(mr_list, "MR_LIST")
 
 
 def wrap_in_sentence_tags(list_of_mr_lists):
@@ -393,10 +420,31 @@ def wrap_in_sentence_tags(list_of_mr_lists):
     return seq
 
 
-LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS = {'raw_input': linearize_slot_value_mr_list,
+def linearize_slot_value_mr_list_simplified(mr_list: SlotValueMRList):
+    return linearize_slot_value_mr_seq_simplified(mr_list, "MR_LIST")
+
+
+def wrap_in_sentence_tags_simplified(list_of_mr_lists):
+    seq = []
+    for mr_list in list_of_mr_lists:
+        seq.extend(linearize_slot_value_mr_list(mr_list))
+        seq.append("<SENTENCE_SEP>")
+    return seq[:-1]
+
+
+ORIG_LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS = {'raw_input': linearize_slot_value_mr_list,
                                                 'selected_input': linearize_slot_value_mr_list,
                                                 'ordered_input': linearize_slot_value_mr_list,
                                                 'sentence_segmented_input': wrap_in_sentence_tags,
+                                                'lexicalisation': lambda lex_string: lex_string.strip().replace(" @ ", " ").split(),
+                                                'referring_expressions': lambda reg_string: reg_string.strip().replace(" @ ", " ").split(),
+                                                'raw_output': lambda text: text.strip().split()}
+
+
+LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS = {'raw_input': linearize_slot_value_mr_list_simplified,
+                                                'selected_input': linearize_slot_value_mr_list_simplified,
+                                                'ordered_input': linearize_slot_value_mr_list_simplified,
+                                                'sentence_segmented_input': wrap_in_sentence_tags_simplified,
                                                 'lexicalisation': lambda lex_string: lex_string.strip().replace(" @ ", " ").split(),
                                                 'referring_expressions': lambda reg_string: reg_string.strip().replace(" @ ", " ").split(),
                                                 'raw_output': lambda text: text.strip().split()}

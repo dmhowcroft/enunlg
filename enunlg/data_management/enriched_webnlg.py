@@ -471,6 +471,19 @@ def linearize_rdf_triple_list(rdf_triple_list: Union[List[RDFTriple], RDFTripleL
     return tokens
 
 
+def linearize_rdf_triple_list_simplified(rdf_triple_list: Union[List[RDFTriple], RDFTripleList]) -> List[str]:
+    tokens = []
+    for rdf_triple in rdf_triple_list:
+        tokens.append("<SUBJECT>")
+        tokens.extend(tokenize_slots_and_values(rdf_triple.subject))
+        tokens.append("<PREDICATE>")
+        tokens.extend([x.lower() for x in tokenize_slots_and_values(rdf_triple.predicate)])
+        tokens.append("<OBJECT>")
+        tokens.extend(tokenize_slots_and_values(rdf_triple.object))
+        tokens.append("<TRIPLE_SEP>")
+    return tokens[:-1]
+
+
 def linearize_seq_of_rdf_triple_lists(seq_of_rdf_triple_lists) -> List[str]:
     tokens = []
     for rdf_triple_list in seq_of_rdf_triple_lists:
@@ -479,10 +492,27 @@ def linearize_seq_of_rdf_triple_lists(seq_of_rdf_triple_lists) -> List[str]:
         tokens.append("</SENTENCE>")
     return tokens
 
-LINEARIZATION_FUNCTIONS = {'raw_input': linearize_rdf_triple_list,
+
+def linearize_seq_of_rdf_triple_lists_simplified(seq_of_rdf_triple_lists) -> List[str]:
+    tokens = []
+    for rdf_triple_list in seq_of_rdf_triple_lists:
+        tokens.extend(linearize_rdf_triple_list_simplified(rdf_triple_list))
+        tokens.append("<SENTENCE_SEP>")
+    return tokens[:-1]
+
+
+ORIG_LINEARIZATION_FUNCTIONS = {'raw_input': linearize_rdf_triple_list,
                            'selected_input': linearize_rdf_triple_list,
                            'ordered_input': linearize_rdf_triple_list,
                            'sentence_segmented_input': linearize_seq_of_rdf_triple_lists,
+                           'lexicalisation': lambda lex_string: lex_string.strip().split(),
+                           'referring_expressions': lambda reg_string: reg_string.strip().split(),
+                           'raw_output': lambda text: text.strip().split()}
+
+LINEARIZATION_FUNCTIONS = {'raw_input': linearize_rdf_triple_list_simplified,
+                           'selected_input': linearize_rdf_triple_list_simplified,
+                           'ordered_input': linearize_rdf_triple_list_simplified,
+                           'sentence_segmented_input': linearize_seq_of_rdf_triple_lists_simplified,
                            'lexicalisation': lambda lex_string: lex_string.strip().split(),
                            'referring_expressions': lambda reg_string: reg_string.strip().split(),
                            'raw_output': lambda text: text.strip().split()}
