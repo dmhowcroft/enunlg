@@ -89,13 +89,16 @@ def prep_pipeline_corpus(config: omegaconf.DictConfig, splits: List[str], print_
 
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
     if config.input_mode == "rdf":
+        lin_func_label = "enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS"
         linearisation_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
     elif config.input_mode == "e2e":
+        lin_func_label = "enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS"
         linearisation_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
         if config.corpus.name == "webnlg-enriched":
+            lin_func_label = "enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS"
             linearisation_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS
     text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(pipeline_corpus, mapping_functions=linearisation_functions)
-    text_corpus.metadata['linearisation_functions'] = linearisation_functions
+    text_corpus.metadata['linearisation_functions'] = lin_func_label
     if print_summaries:
         text_corpus.print_summary_stats()
         text_corpus.print_sample(0, 100, 10)
