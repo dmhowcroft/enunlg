@@ -1,4 +1,5 @@
 from collections import defaultdict
+from copy import deepcopy
 from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple, TypeVar
 
 import logging
@@ -35,6 +36,9 @@ class PipelineItem(object):
     def __setitem__(self, key, value):
         self.__setattr__(key, value)
 
+    def __delitem__(self, item):
+        return self.__delattr__(item)
+
     def __repr__(self):
         attr_string = ", ".join([f"{layer}={str(self[layer])}" for layer in self.annotation_layers])
         return f"{self.__class__.__name__}({attr_string})"
@@ -43,6 +47,20 @@ class PipelineItem(object):
         for layer in self.annotation_layers:
             layer_content = " ".join(self[layer])
             print(f"{layer}|\t{layer_content}")
+
+    def drop_layers(self, drop=None, keep=None) -> None:
+        if drop is None and keep is None:
+            raise ValueError("Must specify either which layers to keep or which layers to drop")
+        if drop and keep:
+            raise ValueError("Must only specify one of keep or drop, and specified both")
+        if drop:
+            # TODO implement this for completeness
+            raise NotImplementedError("Haven't implemented this path yet...")
+        if keep:
+            for layer_name in self.annotation_layers:
+                if layer_name not in keep:
+                    del self[layer_name]
+            self.annotation_layers = list(keep)
 
 
 AnyPipelineItemSubclass = TypeVar("AnyPipelineItemSubclass", bound=PipelineItem)
@@ -63,22 +81,22 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
             self.annotation_layers = layer_names
         super(PipelineCorpus, self).__init__(seq)
 
-    def __getstate__(self):
-        state = {attribute: self.__getattribute__(attribute)
-                 for attribute in self.STATE_ATTRIBUTES}
-        state['__class__'] = self.__class__.__name__
-        state['_content'] = list(self)
-        return state
-
-    @classmethod
-    def __setstate__(cls, state: Dict[str, Any]):
-        class_name = state["__class__"]
-        assert class_name == cls.__name__
-        new_generator = cls.__new__(cls)
-        for attribute in cls.STATE_ATTRIBUTES:
-            new_generator.__setattr__(attribute, state[attribute])
-        new_generator.append(state['_content'])
-        return new_generator
+    # def __getstate__(self):
+    #     state = {attribute: self.__getattribute__(attribute)
+    #              for attribute in self.STATE_ATTRIBUTES}
+    #     state['__class__'] = self.__class__.__name__
+    #     state['_content'] = list(self)
+    #     return state
+    #
+    # @classmethod
+    # def __setstate__(cls, state: Dict[str, Any]):
+    #     class_name = state["__class__"]
+    #     assert class_name == cls.__name__
+    #     new_generator = cls.__new__(cls)
+    #     for attribute in cls.STATE_ATTRIBUTES:
+    #         new_generator.__setattr__(attribute, state[attribute])
+    #     new_generator.append(state['_content'])
+    #     return new_generator
 
     @property
     def layer_pairs(self):
@@ -132,6 +150,25 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
             message = "`random` must be None or an integer"
             raise ValueError(message)
 
+    def drop_layers(self, drop=None, keep=None):
+        if drop is None and keep is None:
+            raise ValueError("Must specify either which layers to keep or which layers to drop")
+        if drop and keep:
+            raise ValueError("Must only specify one of keep or drop, and specified both")
+        if drop:
+            # TODO implement this for completeness
+            raise NotImplementedError("Haven't implemented this path yet...")
+        if keep:
+            if set(keep) == set(self.annotation_layers):
+                pass
+            else:
+                for entry in self:
+                    entry.drop_layers(drop, keep)
+                self.annotation_layers = list(keep)
+
+
+AnyPipelineCorpus = TypeVar("AnyPipelineCorpus", bound=PipelineCorpus)
+
 
 class TextPipelineCorpus(PipelineCorpus):
     STATE_ATTRIBUTES = tuple(list(PipelineCorpus.STATE_ATTRIBUTES) + ["_max_layer_length", "_layer_lengths"])
@@ -143,7 +180,7 @@ class TextPipelineCorpus(PipelineCorpus):
 
     @classmethod
     def from_existing(cls, corpus: PipelineCorpus, mapping_functions):
-        out_corpus = TextPipelineCorpus(corpus)
+        out_corpus = TextPipelineCorpus(deepcopy(corpus))
         out_corpus.metadata = corpus.metadata
         for item in out_corpus:
             for layer in item.annotation_layers:
