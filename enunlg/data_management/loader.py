@@ -1,6 +1,6 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, List
+from typing import TYPE_CHECKING, Optional, List, Tuple
 
 import json
 import logging
@@ -11,6 +11,10 @@ import enunlg.data_management.cued
 import enunlg.data_management.e2e_challenge
 import enunlg.data_management.enriched_e2e
 import enunlg.data_management.enriched_webnlg
+
+
+if TYPE_CHECKING:
+    from enunlg.data_management.pipelinecorpus import AnyPipelineCorpus, TextPipelineCorpus
 
 
 logger = logging.getLogger(__name__)
@@ -58,7 +62,7 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits, sem_class
         raise ValueError(message)
 
 
-def prep_pipeline_corpus(config: omegaconf.DictConfig, splits: List[str], print_summaries: bool = True) -> tuple:
+def prep_pipeline_corpus(config: omegaconf.DictConfig, splits: List[str], print_summaries: bool = True) -> "Tuple[AnyPipelineCorpus, AnyPipelineCorpus, TextPipelineCorpus]":
     pipeline_corpus = load_data_from_config(config, splits)
     if print_summaries:
         pipeline_corpus.print_summary_stats()
