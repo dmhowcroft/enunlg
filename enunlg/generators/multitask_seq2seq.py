@@ -65,8 +65,8 @@ class MultitaskSeq2SeqGenerator(object):
         for attribute in self.STATE_ATTRIBUTES:
             curr_obj = getattr(self, attribute)
             save_method = getattr(curr_obj, 'save', None)
-            print(curr_obj)
-            print(save_method)
+            # print(curr_obj)
+            # print(save_method)
             attr_path = Path(filepath) / attribute
             if attribute == "vocabularies":
                 # Special handling for the vocabularies
