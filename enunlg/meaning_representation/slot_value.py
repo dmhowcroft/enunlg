@@ -33,6 +33,12 @@ class SlotValueMRList(list):
     def __init__(self, seq):
         super().__init__(seq)
 
+    def items(self):
+        items = []
+        for mr in self:
+            items.extend(mr.items())
+        return items
+
 
 class MultivaluedSlotValueMR(box.Box):
     def __init__(self, *args, **kwargs):
