@@ -90,30 +90,31 @@ class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
         super().__init__(annotation_layers)
 
     def delex_slots(self, slots):
-        if self.can_delex(slots):
+        for slot in slots:
+            if slot not in self['raw_input']:
+                continue
+            value = self['raw_input'][slot]
+            # print(value)
             for layer_name in self.annotation_layers:
                 layer = self[layer_name]
-                for slot in slots:
-                    if slot not in self['raw_input']:
-                        continue
-                    value = self['raw_input'][slot]
-                    orig_tag = f"__{slot.upper()}__"
-                    if isinstance(layer, SlotValueMR):
-                        layer.delex_slot(slot)
-                    elif isinstance(layer, tuple):
-                        if all(isinstance(element, SlotValueMR) for element in layer):
-                            for element in layer:
-                                element.delex_slot(slot)
-                    elif isinstance(layer, str):
-                        if layer_name == 'raw_output':
-                            self[layer_name] = layer.replace(value, orig_tag).replace(value.replace("_", " "), orig_tag)
-                    else:
-                        raise ValueError(f"Unexpected type for this layer: {type(layer)}")
-            for slot in self['raw_input']:
-                if slot not in slots:
-                    self['lexicalisation'] = self['lexicalisation'].replace(f"__{slot.upper()}__", self['raw_input'][slot])
-        else:
-            print(f"could not delex {slots}")
+                orig_tag = f"__{slot.upper()}__"
+                if isinstance(layer, SlotValueMR):
+                    layer.delex_slot(slot)
+                elif isinstance(layer, tuple):
+                    if all(isinstance(element, SlotValueMR) for element in layer):
+                        for element in layer:
+                            element.delex_slot(slot)
+                elif isinstance(layer, str):
+                    if layer_name == 'raw_output':
+                        new_output = layer.replace(value, orig_tag).replace(value.replace("_", " "), orig_tag)
+                        if new_output == layer:
+                            logger.debug(f"Could not find '{value}' in:\n\t{layer}")
+                        self[layer_name] = new_output
+                else:
+                    raise ValueError(f"Unexpected type for this layer: {type(layer)}")
+        for slot in self['raw_input']:
+            if slot not in slots:
+                self['lexicalisation'] = self['lexicalisation'].replace(f"__{slot.replace(" ", "_").upper()}__", self['raw_input'][slot])
 
     def can_delex(self, slots):
         can_delex = True
@@ -154,6 +155,8 @@ class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
             # Checking for the restaurant name in the input selections is the fastest way to check.
             if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
                 pass
+            elif entry.raw_output.strip() and entry.lexicalisation.strip():
+                pass
             else:
                 entries_to_drop.append(idx)
         for idx in reversed(entries_to_drop):
@@ -162,16 +165,18 @@ class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
     def delexicalise_by_slot_name(self, slots):
         undelexicalisable_entries = []
         for idx, entry in enumerate(self):
-            logger.debug("-=-=-=-=-=-=-=-==-")
-            logger.debug(f"Attempting to delex entry #{idx}")
-            logger.debug(entry)
+            # logger.debug("-=-=-=-=-=-=-=-==-")
+            # logger.debug(f"Attempting to delex entry #{idx}")
+            # logger.debug(entry)
             orig_entry = deepcopy(entry)
             if entry.can_delex(slots):
                 entry.delex_slots(slots)
             if repr(orig_entry) == repr(entry):
+                logger.debug(f"Could not delex: {entry}")
                 undelexicalisable_entries.append(idx)
-            if any(f"__{x.upper()}__" in entry['lexicalisation'] for x in slots):
-                logger.debug(f"could not fully delexicalise the lexicalisation layer for {entry}")
+            # if any(f"__{x.upper()}__" in entry['lexicalisation'] for x in slots):
+            #     logger.info(f"the lex layer is not fully delexicalised: {entry['lexicalisation']}")
+            #     logger.debug(f"could not fully delexicalise the lexicalisation layer for {entry}")
         logger.info(f"We had to discard {len(undelexicalisable_entries)} entries as undelexicalisable.")
         for idx in reversed(undelexicalisable_entries):
             self.pop(idx)
@@ -220,7 +225,7 @@ def extract_sentence_segmented_input(entry: EnrichedE2EEntry) -> List[Tuple[Slot
 
 
 def extract_lexicalization(entry: EnrichedE2EEntry) -> List[str]:
-    return [target.lexicalization for target in entry.targets]
+    return [target.lexicalization.replace(" @ ", " ") for target in entry.targets]
 
 
 def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
@@ -277,7 +282,7 @@ def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
 
 
 def extract_raw_output(entry: EnrichedE2EEntry) -> List[str]:
-    return [target.text for target in entry.targets]
+    return [target.text.replace(" @ ", " ") for target in entry.targets]
 
 
 def load_enriched_e2e(enriched_e2e_config: omegaconf.DictConfig, splits: Optional[Iterable[str]] = None) -> EnrichedE2ECorpus:
@@ -309,7 +314,7 @@ def load_enriched_e2e(enriched_e2e_config: omegaconf.DictConfig, splits: Optiona
         for target in entry.targets:
             target.text = TGenTokeniser.tokenise(target.text)
     enriched_e2e_factory = enunlg.data_management.pipelinecorpus.PipelineCorpusMapper(EnrichedE2ECorpusRaw, EnrichedE2EItem,
-                                                {'raw-input': lambda entry: extract_raw_input(entry),
+                                                {'raw-input': extract_raw_input,
                                                  'selected-input': extract_selected_input,
                                                  'ordered-input': extract_ordered_input,
                                                  'sentence-segmented-input': extract_sentence_segmented_input,
