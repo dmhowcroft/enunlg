@@ -252,7 +252,16 @@ class PipelineCorpusMapper(object):
                 # This will show up as the first 'layer' having length 1 and subsequent layers having length > 1
                 num_targets = max([len(x) for x in output])
                 # We expand any layers of length 1, duplicating their entries, and preserving the rest of the layers
-                output = [x * num_targets if len(x) == 1 else x for x in output]
+                same_length_output = []
+                for x in output:
+                    if len(x) == 1:
+                        y = []
+                        for _ in range(num_targets):
+                            y.append(deepcopy(x[0]))
+                        same_length_output.append(y)
+                    else:
+                        same_length_output.append(x)
+                output = same_length_output
                 try:
                     assert all(len(x) == num_targets for x in output), f"expected all layers to have the same number of items, but received: {[len(x) for x in output]}"
                 except AssertionError:
