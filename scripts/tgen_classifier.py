@@ -20,7 +20,7 @@ import enunlg.meaning_representation.dialogue_acts as das
 import enunlg.trainer.binary_mr_classifier
 import enunlg.util
 import enunlg.vocabulary
-from util import rdf_to_slot_value_list
+from util import rdf_to_sv_set
 
 logger = logging.getLogger("enunlg-scripts.tgen_classifier")
 
@@ -80,7 +80,7 @@ def rejoin_sem_classes(text):
 
 
 def webnlg_to_e2e(corpus):
-    return e2e.E2ECorpus([e2e.E2EPair(rdf_to_slot_value_list(entry.raw_input),
+    return e2e.E2ECorpus([e2e.E2EPair(rdf_to_sv_set(entry.raw_input),
                                       rejoin_sem_classes(TGenTokeniser.tokenize(entry.raw_output)))
                           for entry in corpus])
     

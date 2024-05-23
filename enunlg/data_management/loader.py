@@ -72,7 +72,7 @@ def prep_pipeline_corpus(config: omegaconf.DictConfig, splits: List[str], print_
         pipeline_corpus.validate_enriched_e2e()
         pipeline_corpus.delexicalise_by_slot_name(('name', 'near'))
         if config.input_mode == "rdf":
-            enunlg.util.translate_e2e_to_rdf(pipeline_corpus)
+            enunlg.util.translate_sv_corpus_to_rdf(pipeline_corpus)
     elif config.corpus.name == "webnlg-enriched":
         sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
         sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
@@ -81,7 +81,7 @@ def prep_pipeline_corpus(config: omegaconf.DictConfig, splits: List[str], print_
         # For some reason metadata doesn't get copied???
         slot_value_corpus.metadata = pipeline_corpus.metadata
         # It's not yet a slot-value corpus until we run this
-        enunlg.util.translate_rdf_to_e2e(slot_value_corpus)
+        enunlg.util.translate_rdf_corpus_to_e2e(slot_value_corpus)
         if config.input_mode == "e2e":
             pipeline_corpus = slot_value_corpus
     else:

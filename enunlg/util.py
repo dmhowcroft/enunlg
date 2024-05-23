@@ -56,7 +56,7 @@ def set_random_seeds(seed) -> None:
     torch.manual_seed(seed)
 
 
-def mr_to_rdf(mr) -> "RDFTripleList":
+def sv_to_rdf(mr) -> "RDFTripleList":
     from enunlg.data_management.webnlg import RDFTriple, RDFTripleList
     tripleset = []
     agent = mr['name']
@@ -70,32 +70,32 @@ def hamming_error(target_bitvector, bitvector) -> float:
     return sum(abs(target_bitvector - bitvector))/sum(target_bitvector)
 
 
-def translate_e2e_to_rdf(corpus) -> None:
+def translate_sv_corpus_to_rdf(corpus) -> None:
     for entry in corpus:
         agent = entry.raw_input['name']
-        entry.raw_input = mr_to_rdf(entry.raw_input)
-        entry.selected_input = mr_to_rdf(entry.selected_input)
-        entry.ordered_input = mr_to_rdf(entry.ordered_input)
+        entry.raw_input = sv_to_rdf(entry.raw_input)
+        entry.selected_input = sv_to_rdf(entry.selected_input)
+        entry.ordered_input = sv_to_rdf(entry.ordered_input)
         sentence_mrs = []
         for sent_mr in entry.sentence_segmented_input:
             sent_mr_dict = dict(sent_mr)
             sent_mr_dict['name'] = agent
-            sentence_mrs.append(mr_to_rdf(sent_mr_dict))
+            sentence_mrs.append(sv_to_rdf(sent_mr_dict))
         entry.sentence_segmented_input = sentence_mrs
 
 
-def translate_rdf_to_e2e(corpus) -> None:
+def translate_rdf_corpus_to_e2e(corpus) -> None:
     for entry in corpus:
-        entry.raw_input = rdf_to_mr_list(entry.raw_input)
-        entry.selected_input = rdf_to_mr_list(entry.selected_input)
-        entry.ordered_input = rdf_to_mr_list(entry.ordered_input)
+        entry.raw_input = rdf_to_sv_list(entry.raw_input)
+        entry.selected_input = rdf_to_sv_list(entry.selected_input)
+        entry.ordered_input = rdf_to_sv_list(entry.ordered_input)
         sent_mr_lists = []
         for sent_rdf_list in entry.sentence_segmented_input:
-            sent_mr_lists.append(rdf_to_mr_list(sent_rdf_list))
+            sent_mr_lists.append(rdf_to_sv_list(sent_rdf_list))
         entry.sentence_segmented_input = sent_mr_lists
 
 
-def rdf_to_slot_value_list(rdf_triple_list):
+def rdf_to_sv_set(rdf_triple_list) -> set:
     sv_set = set()
     for triple in rdf_triple_list:
         sv_set.add(('name', triple.subject))
@@ -103,7 +103,7 @@ def rdf_to_slot_value_list(rdf_triple_list):
     return sv_set
 
 
-def rdf_to_mr_list(rdf_triple_list) -> SlotValueMRList:
+def rdf_to_sv_list(rdf_triple_list) -> SlotValueMRList:
     grouped_by_name = defaultdict(list)
     for triple in rdf_triple_list:
         grouped_by_name[triple.subject].append((triple.predicate, triple.object))
