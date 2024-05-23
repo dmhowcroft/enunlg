@@ -230,6 +230,8 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                                                'lexicalisation': lexicalisation,
                                                'raw_output': raw_output})
                 new_item.references = extract_refs_from_xsdata_rep(lex.references.reference)
+                new_item.metadata['eid'] = entry.eid
+                new_item.metadata['lid'] = lex.lid
                 out_corpus.append(new_item)
         return cls(out_corpus)
 
@@ -408,7 +410,7 @@ def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] 
                        'splits': splits,
                        'directory': data_directory,
                        'raw': True}
-    logger.info(len(corpus))
+    logger.info(f"Corpus size: {len(corpus)}")
 
     # tokenize texts
     for entry in corpus:

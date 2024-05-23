@@ -153,9 +153,7 @@ class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
         for idx, entry in enumerate(self):
             # Some of the EnrichedE2E entries have incorrect semantics.
             # Checking for the restaurant name in the input selections is the fastest way to check.
-            if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input:
-                pass
-            elif entry.raw_output.strip() and entry.lexicalisation.strip():
+            if 'name' in entry.raw_input and 'name' in entry.selected_input and 'name' in entry.ordered_input and entry.raw_output.strip() and entry.lexicalisation.strip():
                 pass
             else:
                 entries_to_drop.append(idx)
@@ -181,51 +179,49 @@ class EnrichedE2ECorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus):
         for idx in reversed(undelexicalisable_entries):
             self.pop(idx)
 
+    @classmethod
+    def from_raw_corpus(cls, corpus):
+        out_corpus = []
+        for entry in corpus:
+            raw_input = extract_raw_input(entry)
+            for target in entry.targets:
+                selected_mr = {}
+                sentence_grouped_mrs = []
+                for sentence in target.structuring.sentences:
+                    sent_mr = {}
+                    for input_element in sentence.content:
+                        selected_mr[input_element.attribute] = input_element.value
+                        sent_mr[input_element.attribute] = input_element.value
+                    sentence_grouped_mrs.append(SlotValueMR(sent_mr))  # , frozen_box=True))
+                selected_input = SlotValueMR(selected_mr)
+                ordered_input = SlotValueMR(deepcopy(selected_mr))
+                sentence_segmented_input = tuple(sentence_grouped_mrs)
+                lexicalisation = target.lexicalization.replace(" @ ", " ")
+                raw_output = target.text.replace(" @ ", " ")
+                # This will drop any entries which contain 'None' for any annotation layers
+                if None in [raw_output, target.template, lexicalisation]:
+                    continue
+                if any([None in x for x in [raw_input, selected_input, ordered_input, sentence_segmented_input]]):
+                    continue
+                if any([len(x) == 0 for x in [raw_input, selected_input, ordered_input, sentence_segmented_input]]):
+                    continue
+                new_item = EnrichedE2EItem({'raw_input': deepcopy(raw_input),
+                                            'selected_input': selected_input,
+                                            'ordered_input': ordered_input,
+                                            'sentence_segmented_input': sentence_segmented_input,
+                                            'lexicalisation': lexicalisation,
+                                            'raw_output': raw_output})
+                new_item.metadata['eid'] = entry.eid
+                new_item.metadata['lid'] = target.lid
+                out_corpus.append(new_item)
+        return cls(out_corpus)
 
-def extract_raw_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
+
+def extract_raw_input(entry: EnrichedE2EEntry) -> SlotValueMR:
     mr = {}
     for source_input in entry.source.inputs:
         mr[source_input.attribute] = source_input.value
-    return [SlotValueMR(mr)]  #, frozen_box=True)]
-
-
-def extract_selected_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
-    targets = []
-    for target in entry.targets:
-        mr = {}
-        for sentence in target.structuring.sentences:
-            for input_element in sentence.content:
-                mr[input_element.attribute] = input_element.value
-        targets.append(SlotValueMR(mr))  # , frozen_box=True))
-    return targets
-
-
-def extract_ordered_input(entry: EnrichedE2EEntry) -> List[SlotValueMR]:
-    targets = []
-    for target in entry.targets:
-        mr = {}
-        for sentence in target.structuring.sentences:
-            for input_element in sentence.content:
-                mr[input_element.attribute] = input_element.value
-        targets.append(SlotValueMR(mr))  # , frozen_box=True))
-    return targets
-
-
-def extract_sentence_segmented_input(entry: EnrichedE2EEntry) -> List[Tuple[SlotValueMR]]:
-    targets = []
-    for target in entry.targets:
-        selected_inputs = []
-        for sentence in target.structuring.sentences:
-            mr = {}
-            for input_element in sentence.content:
-                mr[input_element.attribute] = input_element.value
-            selected_inputs.append(SlotValueMR(mr))  # , frozen_box=True))
-        targets.append(tuple(selected_inputs))
-    return targets
-
-
-def extract_lexicalization(entry: EnrichedE2EEntry) -> List[str]:
-    return [target.lexicalization.replace(" @ ", " ") for target in entry.targets]
+    return SlotValueMR(mr)  #, frozen_box=True)]
 
 
 def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
@@ -281,10 +277,6 @@ def extract_reg_in_lex(entry: EnrichedE2EEntry) -> List[str]:
     return reg_lexes
 
 
-def extract_raw_output(entry: EnrichedE2EEntry) -> List[str]:
-    return [target.text.replace(" @ ", " ") for target in entry.targets]
-
-
 def load_enriched_e2e(enriched_e2e_config: omegaconf.DictConfig, splits: Optional[Iterable[str]] = None) -> EnrichedE2ECorpus:
     """
     :param enriched_e2e_config: omegaconf.DictConfig like object containing the basic
@@ -307,22 +299,15 @@ def load_enriched_e2e(enriched_e2e_config: omegaconf.DictConfig, splits: Optiona
                        'splits': splits,
                        'directory': enriched_e2e_config.load_dir,
                        'raw': True}
-    logger.info(len(corpus))
+    logger.info(f"Corpus size: {len(corpus)}")
 
     # tokenize texts
     for entry in corpus:
         for target in entry.targets:
             target.text = TGenTokeniser.tokenise(target.text)
-    enriched_e2e_factory = enunlg.data_management.pipelinecorpus.PipelineCorpusMapper(EnrichedE2ECorpusRaw, EnrichedE2EItem,
-                                                {'raw-input': extract_raw_input,
-                                                 'selected-input': extract_selected_input,
-                                                 'ordered-input': extract_ordered_input,
-                                                 'sentence-segmented-input': extract_sentence_segmented_input,
-                                                 'lexicalisation': extract_lexicalization,
-                                                 'raw-output': extract_raw_output})
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
-    corpus: EnrichedE2ECorpus = EnrichedE2ECorpus(enriched_e2e_factory(corpus))
+    corpus: EnrichedE2ECorpus = EnrichedE2ECorpus.from_raw_corpus(corpus)
     corpus.metadata = {'name': enriched_e2e_config.display_name,
                        'splits': splits,
                        'directory': enriched_e2e_config.load_dir,

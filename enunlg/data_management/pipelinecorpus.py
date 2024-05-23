@@ -27,6 +27,7 @@ class PipelineItem(object):
         :param annotation_layers: dict mapping layer names to the entry for that layer
         """
         self.annotation_layers = [string_to_python_identifier(layer_name) for layer_name in annotation_layers]
+        self.metadata = {}
         for new_name, layer in zip(self.annotation_layers, annotation_layers):
             self.__setattr__(new_name, annotation_layers[layer])
 
@@ -221,6 +222,8 @@ class TextPipelineCorpus(PipelineCorpus):
             io_stream.write(f"#   {annotation_layer}\n")
         io_stream.write("\n")
         for entry in self:
+            if 'eid' in entry.metadata and 'lid' in entry.metadata:
+                io_stream.write(f"# {entry.metadata['eid']}-{entry.metadata['lid']}\n")
             for annotation_layer in self.annotation_layers:
                 layer_line = " ".join(entry[annotation_layer])
                 io_stream.write(f"{layer_line}\n")

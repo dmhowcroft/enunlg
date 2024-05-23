@@ -62,21 +62,26 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits, sem_class
         raise ValueError(message)
 
 
-def prep_pipeline_corpus(config: omegaconf.DictConfig, splits: List[str], print_summaries: bool = True) -> "Tuple[AnyPipelineCorpus, AnyPipelineCorpus, TextPipelineCorpus]":
+def prep_pipeline_corpus(config: omegaconf.DictConfig,
+                         splits: List[str],
+                         delexicalise: bool = True,
+                         print_summaries: bool = True) -> "Tuple[AnyPipelineCorpus, AnyPipelineCorpus, TextPipelineCorpus]":
     pipeline_corpus = load_data_from_config(config, splits)
     if print_summaries:
         pipeline_corpus.print_summary_stats()
 
     if config.corpus.name == "e2e-enriched":
-        slot_value_corpus = deepcopy(pipeline_corpus)
         pipeline_corpus.validate_enriched_e2e()
-        pipeline_corpus.delexicalise_by_slot_name(('name', 'near'))
+        slot_value_corpus = deepcopy(pipeline_corpus)
+        if delexicalise:
+            pipeline_corpus.delexicalise_by_slot_name(('name', 'near'))
         if config.input_mode == "rdf":
             enunlg.util.translate_sv_corpus_to_rdf(pipeline_corpus)
     elif config.corpus.name == "webnlg-enriched":
-        sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
-        sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
-        pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)
+        if delexicalise:
+            sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
+            sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
+            pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)
         slot_value_corpus = deepcopy(pipeline_corpus)
         # For some reason metadata doesn't get copied???
         slot_value_corpus.metadata = pipeline_corpus.metadata
