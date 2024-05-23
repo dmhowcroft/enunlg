@@ -69,10 +69,10 @@ class FullBinaryMRClassifier(object):
                 tarfile_member_names = classifier_file.getmembers()
                 classifier_file.extractall(tmp_dir)
                 # print([x.name for x in tarfile_member_names])
-                # root_name = Path(tarfile_member_names[0].name).parts[0]
-                # root_dir = Path(tmp_dir) / root_name
+                root_name = Path(tarfile_member_names[0].name).parts[0]
+                root_dir = Path(tmp_dir) / root_name
                 # print(root_dir)
-                return cls.load_from_dir(tmp_dir)
+                return cls.load_from_dir(root_dir)
         elif Path(filepath).is_dir():
             return cls.load_from_dir(filepath)
         else:
