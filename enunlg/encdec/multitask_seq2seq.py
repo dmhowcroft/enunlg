@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import List, Optional, Tuple
 
 import logging
 import tarfile
@@ -203,7 +203,53 @@ class DeepEncoderMultiDecoderSeq2SeqAttn(torch.nn.Module):
         return loss.item() / sum([emb.size(0) for emb in dec_emb])
 
     def generate(self, enc_emb, max_length=100):
-        """Only implementing greedy for now."""
+        return self.generate_greedy(enc_emb, max_length)
+
+    def generate_beam(self, enc_emb, max_length=100, beam_size=10, num_expansions: Optional[int] = None):
+        if num_expansions is None:
+            num_expansions = beam_size
+        with torch.no_grad():
+            enc_outputs, enc_h_c_states = self.encode(enc_emb)
+
+            enc_output = enc_outputs[-1]
+            enc_h_c_state = enc_h_c_states[-1]
+            dec_h_c_state = enc_h_c_state
+
+            final_layer_name = self.layer_names[-1]
+            final_layer_decoder = self.task_decoders[final_layer_name]
+
+            prev_beam: List[Tuple[float, Tuple[int, ...], torch.Tensor]] = [(0.0, (torch.tensor([[final_layer_decoder.start_idx]]), ), dec_h_c_state)]
+
+            stop_and_padding = (final_layer_decoder.stop_idx,
+                                final_layer_decoder.padding_idx)
+
+            for dec_index in range(max_length - 1):
+                curr_beam = []
+                for prev_beam_prob, prev_beam_item, prev_beam_hidden_state in prev_beam:
+                    prev_item_index = prev_beam_item[-1]
+                    if prev_item_index in stop_and_padding:
+                        curr_beam.append((prev_beam_prob, prev_beam_item, prev_beam_hidden_state))
+                    else:
+                        dec_input = torch.tensor([[prev_item_index]])
+                        dec_output, dec_h_c_state = final_layer_decoder(dec_input, prev_beam_hidden_state, enc_output)
+                        top_values, top_indices = dec_output.data.topk(num_expansions)
+
+                        for prob, candidate in zip(top_values, top_indices):
+                            curr_beam.append((prev_beam_prob + float(prob), prev_beam_item + (int(candidate), ), dec_h_c_state))
+                prev_beam = []
+                prev_beam_set = set()
+                # print(len(curr_beam))
+                for prob, item, hidden in curr_beam:
+                    if (prob, item) not in prev_beam_set:
+                        prev_beam_set.add((prob, item))
+                        prev_beam.append((prob, item, hidden))
+                # print(len(prev_beam))
+                prev_beam = sorted(prev_beam, key=lambda x: x[0] / len(x[1]), reverse=True)[:beam_size]
+                # print(len(prev_beam))
+            return [(prob/len(seq), seq) for prob, seq, _ in prev_beam]
+
+
+    def generate_greedy(self, enc_emb, max_length=100):
         with torch.no_grad():
             return self.forward_e2e(enc_emb, max_length)
 
