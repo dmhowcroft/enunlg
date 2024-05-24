@@ -7,6 +7,10 @@ import tempfile
 
 from sacrebleu import metrics as sm
 
+try:
+    import bert_score
+except ModuleNotFoundError:
+    bert_score = None
 import omegaconf
 import torch
 
@@ -137,6 +141,7 @@ class MultitaskSeq2SeqGenerator(object):
                 break
         logger.info(f"Dropping {len(indices_to_drop)} entries for having too long an input rep.")
         for idx in reversed(indices_to_drop):
+            slot_value_corpus.pop(idx)
             text_corpus.pop(idx)
 
         # Prepare the embeddings
@@ -144,22 +149,34 @@ class MultitaskSeq2SeqGenerator(object):
         test_ref = test_output['raw_output']
         logger.info(f"Num. input embeddings: {len(test_input)}")
         logger.info(f"Num. input refs: {len(test_ref)}")
-        outputs = [self.model.generate(embedding) for embedding in test_input]
+        outputs = [self.model.generate_beam(embedding)[0][1] for embedding in test_input]
+        logger.info("Done with generation.")
 
-        # Perform generation
+        # Convert to text
         best_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output]))
                         for output in outputs]
         # TODO move Enriched{E2E,WebNLG}-specific formatting out of this function
         ref_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output[1:]])).replace(" @ ", " ")
                        for output in test_ref]
-        for best, ref in zip(best_outputs[:10], ref_outputs[:10]):
+        # Relexicalise
+        relexed_best = []
+        relexed_refs = []
+        for sv_entry, best, ref in zip(slot_value_corpus, best_outputs, ref_outputs):
+            curr_best = best
+            curr_ref = ref
+            for slot in sv_entry.raw_input.relex_dict:
+                curr_best = curr_best.replace(slot, sv_entry.raw_input.relex_dict[slot])
+                curr_ref = curr_ref.replace(slot, sv_entry.raw_input.relex_dict[slot])
+            relexed_best.append(curr_best)
+            relexed_refs.append(curr_ref)
+        for best, ref in zip(relexed_best[:10], relexed_refs[:10]):
             logger.info(best)
             logger.info(ref)
 
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
         # We only have one reference per output
-        bleu_score = bleu.corpus_score(best_outputs, [ref_outputs])
+        bleu_score = bleu.corpus_score(relexed_best, [relexed_refs])
         logger.info(f"Current score: {bleu_score}")
 
         if ser_classifier is not None:
@@ -167,7 +184,7 @@ class MultitaskSeq2SeqGenerator(object):
             for idx in reversed(indices_to_drop):
                 multi_da_mrs.pop(idx)
             # Estimate SER using classifier
-            test_tokens = [text.strip().split() for text in best_outputs]
+            test_tokens = [text.strip().split() for text in relexed_best]
             test_text_ints = [ser_classifier.text_vocab.get_ints(text) for text in test_tokens]
             test_mr_bitvectors = [ser_classifier.binary_mr_vocab.embed_da(mr) for mr in multi_da_mrs]
             ser_pairs = [(torch.tensor(text_ints, dtype=torch.long),
@@ -175,6 +192,10 @@ class MultitaskSeq2SeqGenerator(object):
                          for text_ints, mr_bitvectors in zip(test_text_ints, test_mr_bitvectors)]
 
             logger.info(f"Test error: {ser_classifier.evaluate(ser_pairs):0.2f}")
+
+        if bert_score is not None:
+            p, r, f1 = bert_score.score(relexed_best, relexed_refs, rescale_with_baseline=True, lang='en', verbose=True)
+            logger.info(f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}")
 
 
 class SingleVocabMultitaskSeq2SeqGenerator(MultitaskSeq2SeqGenerator):
