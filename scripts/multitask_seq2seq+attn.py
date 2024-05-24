@@ -99,7 +99,7 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     enunlg.util.set_random_seeds(config.random_seed)
 
-    corpus, slot_value_corpus, text_corpus = enunlg.data_management.loader.prep_pipeline_corpus(config.data, config.train.train_splits)
+    corpus, slot_value_corpus, text_corpus = enunlg.data_management.loader.prep_pipeline_corpus(config.data, config.test.test_splits)
 
     # drop entries that are too long
     indices_to_drop = []
@@ -107,7 +107,7 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
         if len(entry['raw_input']) > config.model.max_input_length - 2:
             indices_to_drop.append(idx)
             break
-    logger.info(f"Dropping {len(indices_to_drop)} entries from the validation set for having too long an input rep.")
+    logger.info(f"Dropping {len(indices_to_drop)} entries from the test set for having too long an input rep.")
     for idx in reversed(indices_to_drop):
         corpus.pop(idx)
         text_corpus.pop(idx)
