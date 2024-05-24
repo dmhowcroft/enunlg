@@ -72,9 +72,9 @@ def prep_pipeline_corpus(config: omegaconf.DictConfig,
 
     if config.corpus.name == "e2e-enriched":
         pipeline_corpus.validate_enriched_e2e()
-        slot_value_corpus = deepcopy(pipeline_corpus)
         if delexicalise:
             pipeline_corpus.delexicalise_by_slot_name(('name', 'near'))
+        slot_value_corpus = deepcopy(pipeline_corpus)
         if config.input_mode == "rdf":
             enunlg.util.translate_sv_corpus_to_rdf(pipeline_corpus)
     elif config.corpus.name == "webnlg-enriched":
