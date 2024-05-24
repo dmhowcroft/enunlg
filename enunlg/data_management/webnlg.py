@@ -20,6 +20,7 @@ class RDFTriple(object):
         self.subject = subj
         self.predicate = pred
         self.object = obj
+        self.relex_dict = {}
 
     def __repr__(self):
         return f"RDFTriple({self.subject}, {self.predicate}, {self.object})"
@@ -34,8 +35,10 @@ class RDFTriple(object):
 
     def delex_reference(self, entity, sem_class):
         if entity == self.subject:
+            self.relex_dict[sem_class] = entity
             self.subject = self.subject.replace(entity, sem_class)
         if entity == self.object:
+            self.relex_dict[sem_class] = entity
             self.object = self.object.replace(entity, sem_class)
 
     def can_delex(self, entity: str) -> bool:
