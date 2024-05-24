@@ -118,12 +118,12 @@ class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
 
     def can_delex(self, slots):
         can_delex = True
-        for layer_name in self.annotation_layers:
-            layer = self[layer_name]
-            for slot in slots:
-                if slot not in self['raw_input']:
-                    continue
-                value = self['raw_input'][slot]
+        for slot in slots:
+            if slot not in self['raw_input']:
+                continue
+            value = self['raw_input'][slot]
+            for layer_name in self.annotation_layers:
+                layer = self[layer_name]
                 orig_tag = f"__{slot.upper()}__"
                 if isinstance(layer, SlotValueMR):
                     if not layer.can_delex(slot):
@@ -137,7 +137,7 @@ class EnrichedE2EItem(enunlg.data_management.pipelinecorpus.PipelineItem):
                         if orig_tag not in self[layer_name]:
                             can_delex = False
                     else:
-                        if value.replace("_", " ") not in self[layer_name]:
+                        if value.replace("_", " ") not in self[layer_name] and value not in self[layer_name]:
                             can_delex = False
                 else:
                     raise ValueError(f"Unexpected type for this layer: {type(layer)}")
