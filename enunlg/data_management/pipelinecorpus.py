@@ -125,10 +125,10 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
                 if entry[layer] is not None:
                     layer_lengths[layer].append(len(entry[layer]))
                     if isinstance(entry[layer], SlotValueMR):
-                        layer_types[layer].update(entry[layer].as_frozen())
+                        layer_types[layer].update(entry[layer])
                     elif isinstance(entry[layer], tuple):
                         if all(isinstance(x, SlotValueMR) for x in entry[layer]):
-                            layer_types[layer].update(tuple(x.as_frozen() for x in entry[layer]))
+                            layer_types[layer].update(tuple(x for x in entry[layer]))
                     else:
                         layer_types[layer].update(entry[layer])
                     num_entries_per_layer[layer] += 1

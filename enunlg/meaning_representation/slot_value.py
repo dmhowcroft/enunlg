@@ -5,9 +5,13 @@ import box
 logger = logging.getLogger(__name__)
 
 
-class SlotValueMR(box.Box):
+class SlotValueMR(dict):
     def __init__(self, *args, **kwargs):
         super(SlotValueMR, self).__init__(*args, **kwargs)
+        self.relex_dict = {}
+
+    def __hash__(self):
+        return hash(repr(self))
 
     def __repr__(self):
         slot_value_pairs = ", ".join([f"{key}='{self[key]}'" for key in self.keys()])
@@ -16,15 +20,13 @@ class SlotValueMR(box.Box):
     def __str__(self):
         return self.__repr__()
 
-    def as_frozen(self) -> "SlotValueMR":
-        return SlotValueMR(self, frozen_box=True)
-
     def delex_slot(self, slot: str) -> None:
         """`slot` will be replaced by f"__{slot.upper()}__" if it is present in the MR"""
         if slot in self:
+            self.relex_dict[f"__{slot.upper()}__"] = self[slot]
             self[slot] = f"__{slot.upper()}__"
 
-    def can_delex(self, slot) -> bool:
+    def can_delex(self, slot: str) -> bool:
         """Checks that `slot` is a key in this MR"""
         return slot in self
 
