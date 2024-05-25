@@ -71,16 +71,18 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
     STATE_ATTRIBUTES = ("metadata", "annotation_layers")
     def __init__(self, seq: Optional[List[AnyPipelineItemSubclass]] = None, metadata: Optional[dict] = None):
         """Each item in a PipelineCorpus is a single entry with annotations for each stage of the pipeline."""
-        if metadata is None:
-            self.metadata = {'name': None,
-                             'splits': None,
-                             'directory': None
-                             }
         if seq:
             layer_names = seq[0].annotation_layers
             assert all(item.annotation_layers == layer_names for item in seq), f"Expected all items in seq to have the layers: {layer_names}"
             self.annotation_layers = layer_names
         super(PipelineCorpus, self).__init__(seq)
+        if metadata is None:
+            self.metadata = {'name': None,
+                             'splits': None,
+                             'directory': None
+                             }
+        else:
+            self.metadata = metadata
 
     # def __getstate__(self):
     #     state = {attribute: self.__getattribute__(attribute)
@@ -215,8 +217,12 @@ class TextPipelineCorpus(PipelineCorpus):
     
     def write_to_iostream(self, io_stream: TextIO) -> None:
         io_stream.write("# TextPipeline Corpus Save File\n")
-        io_stream.write("# Format Version 0.1\n")
-        io_stream.write("\n")
+        io_stream.write("# Format Version 0.2\n")
+        io_stream.write("# \n")
+        io_stream.write("# Metadata:\n")
+        for key in self.metadata:
+            io_stream.write(f"#   {key}: {self.metadata[key]}\n")
+        io_stream.write("# \n")
         io_stream.write("# Annotation Layers:\n")
         for annotation_layer in self.annotation_layers:
             io_stream.write(f"#   {annotation_layer}\n")
