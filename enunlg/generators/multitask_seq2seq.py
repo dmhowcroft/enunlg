@@ -1,3 +1,4 @@
+from copy import deepcopy
 from pathlib import Path
 from typing import List, Dict, Optional
 
@@ -153,10 +154,10 @@ class MultitaskSeq2SeqGenerator(object):
         logger.info("Done with generation.")
 
         # Convert to text
-        best_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output]))
+        best_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output])).replace("<GO> ", "")
                         for output in outputs]
         # TODO move Enriched{E2E,WebNLG}-specific formatting out of this function
-        ref_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output[1:]])).replace(" @ ", " ")
+        ref_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output[1:]])).replace(" @ ", " ").replace("<GO> ", "")
                        for output in test_ref]
         # Relexicalise
         relexed_best = []
@@ -173,11 +174,15 @@ class MultitaskSeq2SeqGenerator(object):
             logger.info(best)
             logger.info(ref)
 
+        output_corpus = deepcopy(text_corpus)
+
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
         # We only have one reference per output
         bleu_score = bleu.corpus_score(relexed_best, [relexed_refs])
         logger.info(f"Current score: {bleu_score}")
+        output_corpus.metadata['BLEU'] = str(bleu_score)
+        output_corpus.metadata['BLEU_settings'] = bleu.get_signature()
 
         if ser_classifier is not None:
             multi_da_mrs = ser_classifier.prepare_input(slot_value_corpus)
@@ -192,10 +197,16 @@ class MultitaskSeq2SeqGenerator(object):
                          for text_ints, mr_bitvectors in zip(test_text_ints, test_mr_bitvectors)]
 
             logger.info(f"Test error: {ser_classifier.evaluate(ser_pairs):0.2f}")
+            output_corpus.metadata['SER'] = f"{ser_classifier.evaluate(ser_pairs):0.2f}"
 
         if bert_score is not None:
-            p, r, f1 = bert_score.score(relexed_best, relexed_refs, rescale_with_baseline=True, lang='en', verbose=True)
+            (p, r, f1), bs_hash = bert_score.score(relexed_best, relexed_refs, return_hash=True, rescale_with_baseline=True, lang='en', verbose=True, device="cuda:0")
             logger.info(f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}")
+            output_corpus.metadata['BERTScore'] = f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}"
+            output_corpus.metadata['BERTScore_settings'] = bs_hash
+
+        return output_corpus
+
 
 
 class SingleVocabMultitaskSeq2SeqGenerator(MultitaskSeq2SeqGenerator):

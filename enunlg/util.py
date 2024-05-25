@@ -105,7 +105,9 @@ def rdf_to_sv_set(rdf_triple_list) -> set:
 
 def rdf_to_sv_list(rdf_triple_list) -> SlotValueMRList:
     grouped_by_name = defaultdict(list)
+    relex_dict = {}
     for triple in rdf_triple_list:
+        relex_dict.update(triple.relex_dict)
         grouped_by_name[triple.subject].append((triple.predicate, triple.object))
     mr_list = []
     for entity in grouped_by_name:
@@ -113,4 +115,6 @@ def rdf_to_sv_list(rdf_triple_list) -> SlotValueMRList:
         for slot, value in grouped_by_name[entity]:
             mr[slot] = value
         mr_list.append(mr)
-    return SlotValueMRList([SlotValueMR(mr) for mr in mr_list])
+    mr_list = SlotValueMRList([SlotValueMR(mr) for mr in mr_list])
+    mr_list.relex_dict = relex_dict
+    return mr_list

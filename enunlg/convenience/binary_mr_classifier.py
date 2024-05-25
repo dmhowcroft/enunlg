@@ -29,6 +29,7 @@ class FullBinaryMRClassifier(object):
         self.model = binary_mr_classifier.TGenSemClassifier(self.text_vocab.size,
                                                             self.binary_mr_vocab.dimensionality,
                                                             model_config)
+        self.metadata = {}
 
     def prepare_input(self, corpus):
         return [das.MultivaluedDA.from_slot_value_list('inform', mr.items())
@@ -72,7 +73,7 @@ class FullBinaryMRClassifier(object):
                 root_name = Path(tarfile_member_names[0].name).parts[0]
                 root_dir = Path(tmp_dir) / root_name
                 # print(root_dir)
-                return cls.load_from_dir(root_dir)
+                return cls.load_from_dir(root_dir, source_file_name=str(filepath))
         elif Path(filepath).is_dir():
             return cls.load_from_dir(filepath)
         else:
@@ -80,7 +81,7 @@ class FullBinaryMRClassifier(object):
             raise ValueError(message)
 
     @classmethod
-    def load_from_dir(cls, filepath):
+    def load_from_dir(cls, filepath, source_file_name=None):
         with (Path(filepath) / "__class__.__name__").open('r') as class_name_file:
             class_name = class_name_file.read().strip()
             assert class_name == cls.__name__, f"{class_name} != {cls.__name__}"
@@ -89,6 +90,9 @@ class FullBinaryMRClassifier(object):
         binary_mr_vocab = enunlg.embeddings.binary.DialogueActEmbeddings.load_from_dir(Path(filepath) / 'binary_mr_vocab')
         classifier = cls(text_vocab, binary_mr_vocab, model.config)
         classifier.model = model
+        if source_file_name is None:
+            source_file_name = filepath
+        classifier.metadata['filepath'] = source_file_name
         return classifier
 
     def evaluate(self, test_pairs):

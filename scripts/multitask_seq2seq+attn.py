@@ -119,7 +119,8 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
         exit()
 
     ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
-    generator.evaluate(slot_value_corpus, text_corpus, ser_classifier)
+    output_corpus = generator.evaluate(slot_value_corpus, text_corpus, ser_classifier)
+    output_corpus.save(Path(config.output_dir) / 'evaluation-output.corpus')
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')

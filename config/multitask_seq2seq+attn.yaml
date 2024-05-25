@@ -6,6 +6,7 @@ pytorch:
   device: cpu
 data:
   input_mode: e2e
+  drop_intermediate_layers: False
 model:
   name: multitask_seq2seq+attn
   max_input_length: 45
