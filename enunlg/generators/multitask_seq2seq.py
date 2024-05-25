@@ -175,6 +175,7 @@ class MultitaskSeq2SeqGenerator(object):
             logger.info(ref)
 
         output_corpus = deepcopy(text_corpus)
+        print(type(text_corpus.metadata))
 
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
@@ -200,7 +201,10 @@ class MultitaskSeq2SeqGenerator(object):
             output_corpus.metadata['SER'] = f"{ser_classifier.evaluate(ser_pairs):0.2f}"
 
         if bert_score is not None:
-            (p, r, f1), bs_hash = bert_score.score(relexed_best, relexed_refs, return_hash=True, rescale_with_baseline=True, lang='en', verbose=True, device="cuda:0")
+            if torch.cuda.is_available():
+                (p, r, f1), bs_hash = bert_score.score(relexed_best, relexed_refs, return_hash=True, rescale_with_baseline=True, lang='en', verbose=True, device="cuda:0")
+            else:
+                (p, r, f1), bs_hash = bert_score.score(relexed_best, relexed_refs, return_hash=True, rescale_with_baseline=True, lang='en', verbose=True)
             logger.info(f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}")
             output_corpus.metadata['BERTScore'] = f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}"
             output_corpus.metadata['BERTScore_settings'] = bs_hash
