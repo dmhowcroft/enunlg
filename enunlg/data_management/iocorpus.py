@@ -32,7 +32,9 @@ class Corpus(list):
 
     def __getitem__(self, key):
         if isinstance(key, slice):
-            return self.__class__(super().__getitem__(key))
+            retval = self.__class__(super().__getitem__(key))
+            retval.metadata = self.metadata
+            return retval
         return super().__getitem__(key)
 
 
