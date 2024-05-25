@@ -51,7 +51,8 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
 
     text_corpus.write_to_iostream((Path(config.output_dir) / "text_corpus.nlg").open('w'))
     dev_text_corpus.write_to_iostream((Path(config.output_dir) / "dev_text_corpus.nlg").open('w'))
-
+    
+    
     # generator = SingleVocabMultitaskSeq2SeqGenerator(text_corpus, config.model)
     generator = MultitaskSeq2SeqGenerator(text_corpus, config.model)
     total_parameters = enunlg.util.count_parameters(generator.model)
@@ -69,7 +70,7 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     # text_corpus = text_corpus[:tmp_train_size]
     # dev_slot_value_corpus = dev_slot_value_corpus[:tmp_dev_size]
     # dev_text_corpus = dev_text_corpus[:tmp_dev_size]
-
+    
     input_embeddings, output_embeddings = generator.prep_embeddings(text_corpus, config.model.max_input_length - 2)
     task_embeddings = [[output_embeddings[layer][idx]
                         for layer in generator.layers[1:]]
@@ -89,11 +90,13 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
     logger.info("===============================================")
     logger.info("Calculating performance on the training data...")
-    generator.evaluate(slot_value_corpus, text_corpus, ser_classifier)
-
+    train_corpus_eval = generator.evaluate(slot_value_corpus, text_corpus, ser_classifier)
+    train_corpus_eval.save(Path(config.output_dir) / 'trainset-eval.corpus')
+    
     logger.info("===============================================")
     logger.info("Calculating performance on the validation data...")
-    generator.evaluate(dev_slot_value_corpus, dev_text_corpus, ser_classifier)
+    dev_corpus_eval = generator.evaluate(dev_slot_value_corpus, dev_text_corpus, ser_classifier)
+    dev_corpus_eval.save(Path(config.output_dir) / 'devset-eval.corpus')
 
 
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
