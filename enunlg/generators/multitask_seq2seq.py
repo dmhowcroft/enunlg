@@ -117,6 +117,7 @@ class MultitaskSeq2SeqGenerator(object):
                 for vocab in state_dict.vocabularies:
                     vocabs[vocab] = enunlg.vocabulary.TokenVocabulary.load_from_dir(root_dir / 'vocabularies' / vocab)
                 new_generator.vocabularies = vocabs
+                new_generator.metadata['loaded_model'] = filepath
                 return new_generator
 
     def prep_embeddings(self, corpus, max_length: Optional[int] = None):
@@ -156,27 +157,38 @@ class MultitaskSeq2SeqGenerator(object):
         logger.info("Done with generation.")
 
         # Convert to text
-        best_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output])).replace("<GO> ", "")
+        best_outputs = [self.vocabularies['raw_output'].pretty_string(output).replace("<GO> ", "").replace(" <STOP>", "")
                         for output in outputs]
+        # print(best_outputs[:10])
         # TODO move Enriched{E2E,WebNLG}-specific formatting out of this function
-        ref_outputs = [" ".join(self.vocabularies['raw_output'].get_tokens([int(x) for x in output[1:]])).replace(" @ ", " ").replace("<GO> ", "")
+        ref_outputs = [self.vocabularies['raw_output'].pretty_string(output).replace(" @ ", " ").replace("<GO> ", "").replace(" <STOP>", "")
                        for output in test_ref]
         # Relexicalise
         relexed_best = []
         relexed_refs = []
         for sv_entry, best, ref in zip(slot_value_corpus, best_outputs, ref_outputs):
-            curr_best = best
-            curr_ref = ref
+            curr_best = best.replace(" ,", ",").replace(" . ", ".").replace(" ?", "?").replace(" !", "!").replace(" ;", ";").replace(" :", ":").replace(" - ", "-")
+            curr_ref = ref.replace(" ,", ",").replace(" . ", ".").replace(" ?", "?").replace(" !", "!").replace(" ;", ";").replace(" :", ":").replace(" - ", "-")
             for slot in sv_entry.raw_input.relex_dict:
-                curr_best = curr_best.replace(slot, sv_entry.raw_input.relex_dict[slot])
-                curr_ref = curr_ref.replace(slot, sv_entry.raw_input.relex_dict[slot])
-            relexed_best.append(curr_best)
-            relexed_refs.append(curr_ref)
+                curr_best = curr_best.replace(slot, sv_entry.raw_input.relex_dict[slot].replace("_", " "))
+                curr_ref = curr_ref.replace(slot, sv_entry.raw_input.relex_dict[slot].replace("_", " "))
+            relexed_best.append(curr_best)  # .lower())
+            relexed_refs.append(curr_ref)  # .lower())
         for best, ref in zip(relexed_best[:10], relexed_refs[:10]):
             logger.info(best)
             logger.info(ref)
 
         output_corpus = deepcopy(text_corpus)
+        output_corpus.metadata['generator_metadata'] = self.metadata
+        output_corpus.annotation_layers.append('best_output_indices')
+        output_corpus.annotation_layers.append('best_output')
+        output_corpus.annotation_layers.append('relexed_reference')
+        for indices, best, ref, entry in zip(outputs, relexed_best, relexed_refs, output_corpus):
+            entry['best_output_indices'] = indices
+            entry['best_output'] = best
+            entry['relexed_reference'] = ref
+            # entry.annotation_layers.append('best_output')
+            # entry.annotation_layers.append('relexed_reference')
 
         # Calculate BLEU compared to targets
         bleu = sm.BLEU()
