@@ -114,6 +114,10 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
         slot_value_corpus.pop(idx)
 
     generator = MultitaskSeq2SeqGenerator.load(config.test.generator_file)
+    if 'metadata' not in dir(generator):
+        generator.metadata = {}
+    if 'loaded_model' not in generator.metadata:
+        generator.metadata['loaded_model'] = config.test.generator_file
     total_parameters = enunlg.util.count_parameters(generator.model)
     if shortcircuit == 'parameters':
         exit()

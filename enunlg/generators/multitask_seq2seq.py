@@ -21,6 +21,7 @@ import enunlg.vocabulary
 
 logger = logging.getLogger(__name__)
 
+
 class MultitaskSeq2SeqGenerator(object):
     STATE_ATTRIBUTES = ('layers', 'vocabularies', 'max_length_any_layer', 'corpus_metadata', 'model')
 
@@ -39,6 +40,7 @@ class MultitaskSeq2SeqGenerator(object):
         self.max_length_any_layer = corpus.max_layer_length
         self.corpus_metadata = corpus.metadata
         self.model = enunlg.encdec.multitask_seq2seq.DeepEncoderMultiDecoderSeq2SeqAttn(self.layers, [self.vocabularies[layer].size for layer in self.vocabularies], model_config)
+        self.metadata = {}
 
     @property
     def input_layer_name(self) -> str:
