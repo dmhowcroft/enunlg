@@ -69,9 +69,12 @@ AnyPipelineItemSubclass = TypeVar("AnyPipelineItemSubclass", bound=PipelineItem)
 
 class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
     STATE_ATTRIBUTES = ("metadata", "annotation_layers")
+
     def __init__(self, seq: Optional[List[AnyPipelineItemSubclass]] = None, metadata: Optional[dict] = None):
         """Each item in a PipelineCorpus is a single entry with annotations for each stage of the pipeline."""
-        if seq:
+        if seq is None:
+            self.annotation_layers = []
+        else:
             layer_names = seq[0].annotation_layers
             assert all(item.annotation_layers == layer_names for item in seq), f"Expected all items in seq to have the layers: {layer_names}"
             self.annotation_layers = layer_names
@@ -221,7 +224,12 @@ class TextPipelineCorpus(PipelineCorpus):
         io_stream.write("# \n")
         io_stream.write("# Metadata:\n")
         for key in self.metadata:
-            io_stream.write(f"#   {key}: {self.metadata[key]}\n")
+            if isinstance(self.metadata[key], dict):
+                io_stream.write(f"#   {key}:\n")
+                for inner_dict_key in self.metadata[key]:
+                    io_stream.write(f"#     {inner_dict_key}: {self.metadata[key][inner_dict_key]}\n")
+            else:
+                io_stream.write(f"#   {key}: {self.metadata[key]}\n")
         io_stream.write("# \n")
         io_stream.write("# Annotation Layers:\n")
         for annotation_layer in self.annotation_layers:
@@ -231,59 +239,9 @@ class TextPipelineCorpus(PipelineCorpus):
             if 'eid' in entry.metadata and 'lid' in entry.metadata:
                 io_stream.write(f"# {entry.metadata['eid']}-{entry.metadata['lid']}\n")
             for annotation_layer in self.annotation_layers:
-                layer_line = " ".join(entry[annotation_layer])
+                if isinstance(entry[annotation_layer], str):
+                    layer_line = entry[annotation_layer]
+                else:
+                    layer_line = " ".join(entry[annotation_layer])
                 io_stream.write(f"{layer_line}\n")
             io_stream.write("\n")
-
-
-class PipelineCorpusMapper(object):
-    def __init__(self, input_format, output_format, annotation_layer_mappings: Dict[str, Callable]):
-        """
-        Create a function which will map from `input_format` to `output_format` using `annotation_layer_mappings`.
-        """
-        self.input_format = input_format
-        self.output_format = output_format
-        self.annotation_layer_mappings = annotation_layer_mappings
-
-    def __call__(self, input_corpus: Iterable) -> List:
-        # logger.debug(f'successful call to {self.__class__.__name__} as a function (rather than a class)')
-        if isinstance(input_corpus, self.input_format):
-            # logger.debug('passed the format check')
-            output_seq = []
-            for entry in input_corpus:
-                # Each entry can actually contain multiple lexicalisations,
-                # so we need to build up the entry as we iterate.
-                output = []
-                for layer in self.annotation_layer_mappings:
-                    # logger.debug(f"processing {layer}")
-                    output.append(self.annotation_layer_mappings[layer](entry))
-                # EnrichedWebNLG-formatted datasets have up to N distinct targets for each single input
-                # This will show up as the first 'layer' having length 1 and subsequent layers having length > 1
-                num_targets = max([len(x) for x in output])
-                # We expand any layers of length 1, duplicating their entries, and preserving the rest of the layers
-                same_length_output = []
-                for x in output:
-                    if len(x) == 1:
-                        y = []
-                        for _ in range(num_targets):
-                            y.append(deepcopy(x[0]))
-                        same_length_output.append(y)
-                    else:
-                        same_length_output.append(x)
-                output = same_length_output
-                try:
-                    assert all(len(x) == num_targets for x in output), f"expected all layers to have the same number of items, but received: {[len(x) for x in output]}"
-                except AssertionError:
-                    print(entry)
-                    for x in output:
-                        print(x)
-                    raise
-                # For each of the N distinct targets, create a self.outputformat object and append it to the output_seq
-                for i in range(num_targets-1):
-                    item = self.output_format({key: output[idx][i] for idx, key in enumerate(self.annotation_layer_mappings.keys())})
-                    output_seq.append(item)
-                # logger.debug(f"Num entries so far: {len(output_seq)}")
-            return output_seq
-        else:
-            message = f"Cannot run {self.__class__} on {type(input_corpus)}"
-            raise TypeError(message)
