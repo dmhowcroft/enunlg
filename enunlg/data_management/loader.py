@@ -11,6 +11,7 @@ import enunlg.data_management.cued
 import enunlg.data_management.e2e_challenge
 import enunlg.data_management.enriched_e2e
 import enunlg.data_management.enriched_webnlg
+import enunlg.util
 
 
 if TYPE_CHECKING:
