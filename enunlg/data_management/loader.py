@@ -63,22 +63,22 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits, sem_class
         raise ValueError(message)
 
 
-def prep_pipeline_corpus(config: omegaconf.DictConfig,
+def prep_pipeline_corpus(data_config: omegaconf.DictConfig,
                          splits: List[str],
                          delexicalise: bool = True,
                          print_summaries: bool = True) -> "Tuple[AnyPipelineCorpus, AnyPipelineCorpus, TextPipelineCorpus]":
-    pipeline_corpus = load_data_from_config(config, splits)
+    pipeline_corpus = load_data_from_config(data_config, splits)
     if print_summaries:
         pipeline_corpus.print_summary_stats()
 
-    if config.corpus.name == "e2e-enriched":
+    if data_config.corpus.name == "e2e-enriched":
         pipeline_corpus.validate_enriched_e2e()
         if delexicalise:
             pipeline_corpus.delexicalise_by_slot_name(('name', 'near'))
         slot_value_corpus = deepcopy(pipeline_corpus)
-        if config.input_mode == "rdf":
+        if data_config.input_mode == "rdf":
             enunlg.util.translate_sv_corpus_to_rdf(pipeline_corpus)
-    elif config.corpus.name == "webnlg-enriched":
+    elif data_config.corpus.name == "webnlg-enriched":
         if delexicalise:
             sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
             sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
@@ -88,19 +88,19 @@ def prep_pipeline_corpus(config: omegaconf.DictConfig,
         slot_value_corpus.metadata = pipeline_corpus.metadata
         # It's not yet a slot-value corpus until we run this
         enunlg.util.translate_rdf_corpus_to_e2e(slot_value_corpus)
-        if config.input_mode == "e2e":
+        if data_config.input_mode == "e2e":
             pipeline_corpus = slot_value_corpus
     else:
         raise ValueError(f"Prepare pipeline corpus can only work with {SUPPORTED_PIPELINE_DATASETS}")
 
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
-    if config.input_mode == "rdf":
+    if data_config.input_mode == "rdf":
         lin_func_label = "enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS"
         linearisation_functions = enunlg.data_management.enriched_webnlg.LINEARIZATION_FUNCTIONS
-    elif config.input_mode == "e2e":
+    elif data_config.input_mode == "e2e":
         lin_func_label = "enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS"
         linearisation_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS
-        if config.corpus.name == "webnlg-enriched":
+        if data_config.corpus.name == "webnlg-enriched":
             lin_func_label = "enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS"
             linearisation_functions = enunlg.data_management.enriched_e2e.LINEARIZATION_FUNCTIONS_WITH_SLOTVALUE_LISTS
     text_corpus = enunlg.data_management.pipelinecorpus.TextPipelineCorpus.from_existing(pipeline_corpus, mapping_functions=linearisation_functions)
