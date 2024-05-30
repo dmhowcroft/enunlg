@@ -20,6 +20,9 @@ class SlotValueMR(dict):
     def __str__(self):
         return self.__repr__()
 
+    def to_dict(self):
+        return {slot: self[slot] for slot in self}
+
     def delex_slot(self, slot: str) -> None:
         """`slot` will be replaced by f"__{slot.upper()}__" if it is present in the MR"""
         if slot in self:
