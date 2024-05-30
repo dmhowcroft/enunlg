@@ -56,7 +56,8 @@ class TGenTokeniser(AbstractTokeniser):
              RegexRule(r'([\p{N}])([,.])([^\p{N}])', r'\1 \2 \3'),
              RegexRule(r'(–-)([^\p{N}])', r'\1 \2'),
              RegexRule(r'(\p{N} *|[^ ])(-)', r'\1\2 '),
-             RegexRule(r'([-−])', r' \1'),
+             RegexRule(r' ([-−])', r'\1'),
+             RegexRule(r' ([\'’´])', r'\1'),
              # Second set keeps apostrophes together with words in most common contractions.
              RegexRule(r'([\'’´]) (s|m|d|ll|re|ve)\s', r' \1\2 '),
              RegexRule(r'(n [\'’´]) (t\s)', r' \1\2 '),
@@ -71,6 +72,27 @@ class TGenTokeniser(AbstractTokeniser):
              RegexRule(r' \' ([Tt])is\s', r' \'\1 is '),
              RegexRule(r' \' ([Tt])was\s', r' \'\1 was '),
              RegexRule(r' ([Ww])anna\s', r' \1an na ')
+             )
+    detok_rules = (RegexRule(r' (([^\p{IsAlnum}\s\.\,−\-])\2*) ', r'\1 '),
+                   RegexRule(r'([^\p{N}]) ([,.]) ([^\p{N}])', r'\1\2 \3'),
+                   RegexRule(r'([^\p{N}]) ([,.]) ([\p{N}])', r'\1\2 \3'),
+                   RegexRule(r'([\p{N}]) ([,.]) ([^\p{N}])', r'\1\2 \3'),
+                   RegexRule(r'(–-) ([^\p{N}])', r'\1\2'),
+                   RegexRule(r'(\p{N} *|[^ ])(-) ', r'\1\2'),
+                   RegexRule(r'([-−])', r' \1'),
+                   # Second set keeps apostrophes together with words in most common contractions.
+                   # RegexRule(r'([\'’´]) (s|m|d|ll|re|ve)\s', r' \1\2 '),
+                   # RegexRule(r'(n [\'’´]) (t\s)', r' \1\2 '),
+                   # Third set of contractions based on Treex.
+                   RegexRule(r' ([Cc])an not ', r' \1annot '),
+                   RegexRule(r' ([Gg])im me\s', r' \1imme '),
+                   RegexRule(r' ([Gg])on na\s', r' \1onna '),
+                   RegexRule(r' ([Gg])ot ta\s', r' \1otta '),
+                   RegexRule(r' ([Ll])em me ', r' \1emme '),
+                   RegexRule(r' ([Ww])an na ', r' \1anna '),
+                   # Fourth set removes remaining spaces before punctuation
+                   RegexRule(r' ([.,?!;:\'])', r'\1'),
+                   RegexRule(r' (__[\p{IsAlnum}][\p{IsAlnum}]*) (-[\p{N}]__) ', r' \1\2 '),
              )
 
     @classmethod
@@ -87,5 +109,12 @@ class TGenTokeniser(AbstractTokeniser):
     def tokenise(cls, text: str) -> str:
         intermediate_text = cls.preprocess(text)
         for rule in cls.rules:
+            intermediate_text = regex.sub(rule.match_expression, rule.replacement_expression, intermediate_text)
+        return cls.postprocess(intermediate_text)
+
+    @classmethod
+    def detokenise(cls, text: str) -> str:
+        intermediate_text = cls.preprocess(text)
+        for rule in cls.detok_rules:
             intermediate_text = regex.sub(rule.match_expression, rule.replacement_expression, intermediate_text)
         return cls.postprocess(intermediate_text)
