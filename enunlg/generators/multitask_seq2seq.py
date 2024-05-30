@@ -154,7 +154,6 @@ class MultitaskSeq2SeqGenerator(object):
         # Convert to text
         best_outputs = [self.vocabularies['raw_output'].pretty_string(output).replace("<GO> ", "").replace(" <STOP>", "")
                         for output in outputs]
-        # print(best_outputs[:10])
         # TODO move Enriched{E2E,WebNLG}-specific formatting out of this function
         ref_outputs = [self.vocabularies['raw_output'].pretty_string(output).replace(" @ ", " ").replace("<GO> ", "").replace(" <STOP>", "")
                        for output in test_ref]
