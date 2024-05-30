@@ -1,10 +1,13 @@
-from copy import deepcopy
 from pathlib import Path
 
-import json
 import logging
-import os
 
+from sacrebleu import metrics as sm
+
+try:
+    import bert_score
+except ModuleNotFoundError:
+    bert_score = None
 import omegaconf
 import hydra
 import torch
@@ -89,11 +92,11 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
     logger.info("===============================================")
     logger.info("Calculating performance on the training data...")
-    generator.evaluate(slot_value_corpus, text_corpus, ser_classifier)
+    generator.generate_output_corpus(slot_value_corpus, text_corpus)
 
     logger.info("===============================================")
     logger.info("Calculating performance on the validation data...")
-    generator.evaluate(dev_slot_value_corpus, dev_text_corpus, ser_classifier)
+    generator.generate_output_corpus(dev_slot_value_corpus, dev_text_corpus)
 
 
 def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None) -> None:
@@ -123,8 +126,44 @@ def test_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None)
         exit()
 
     ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
-    output_corpus = generator.evaluate(slot_value_corpus, text_corpus, ser_classifier)
+    output_corpus, ser_corpus = generator.generate_output_corpus(slot_value_corpus, text_corpus, include_slot_value_corpus=True)
+    output_corpus = evaluate(output_corpus, ser_corpus, ser_classifier)
     output_corpus.save(Path(config.output_dir) / 'evaluation-output.corpus')
+
+
+def evaluate(text_corpus, slot_value_corpus, ser_classifier=None) -> enunlg.data_management.pipelinecorpus.TextPipelineCorpus:
+    # TODO rewrite this so we can have multiple refs
+    relexed_best = [entry['best_output_relexed'] for entry in text_corpus]
+    relexed_refs = [entry['ref_relexed'] for entry in text_corpus]
+
+    # Calculate BLEU compared to targets
+    bleu = sm.BLEU()
+    # We only have one reference per output
+    bleu_score = bleu.corpus_score(relexed_best, [relexed_refs])
+    logger.info(f"Current score: {bleu_score}")
+    text_corpus.metadata['BLEU'] = str(bleu_score)
+    text_corpus.metadata['BLEU_settings'] = bleu.get_signature()
+
+    if ser_classifier is not None:
+        multi_da_mrs = ser_classifier.prepare_input(slot_value_corpus)
+        # Estimate SER using classifier
+        test_tokens = [text.strip().split() for text in relexed_best]
+        test_text_ints = [ser_classifier.text_vocab.get_ints(text) for text in test_tokens]
+        test_mr_bitvectors = [ser_classifier.binary_mr_vocab.embed_da(mr) for mr in multi_da_mrs]
+        ser_pairs = [(torch.tensor(text_ints, dtype=torch.long),
+                      torch.tensor(mr_bitvectors, dtype=torch.float))
+                     for text_ints, mr_bitvectors in zip(test_text_ints, test_mr_bitvectors)]
+
+        logger.info(f"Test error: {ser_classifier.evaluate(ser_pairs):0.2f}")
+        text_corpus.metadata['SER'] = f"{ser_classifier.evaluate(ser_pairs):0.2f}"
+
+    if bert_score is not None:
+        (p, r, f1), bs_hash = bert_score.score(relexed_best, relexed_refs, return_hash=True, rescale_with_baseline=True,
+                                               lang='en', verbose=True, device="cuda:0")
+        logger.info(f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}")
+        text_corpus.metadata['BERTScore'] = f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}"
+        text_corpus.metadata['BERTScore_settings'] = bs_hash
+    return text_corpus
 
 
 @hydra.main(version_base=None, config_path='../config', config_name='multitask_seq2seq+attn')

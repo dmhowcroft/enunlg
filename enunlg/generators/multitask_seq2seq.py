@@ -6,17 +6,12 @@ import logging
 import tarfile
 import tempfile
 
-from sacrebleu import metrics as sm
-
-try:
-    import bert_score
-except ModuleNotFoundError:
-    bert_score = None
 import omegaconf
 import torch
 
 import enunlg.data_management
 import enunlg.encdec.multitask_seq2seq
+import enunlg.normalisation.tokenisation
 import enunlg.vocabulary
 
 logger = logging.getLogger(__name__)
@@ -134,19 +129,19 @@ class MultitaskSeq2SeqGenerator(object):
         }
         return input_embeddings, output_embeddings
 
-    def evaluate(self, slot_value_corpus, text_corpus, ser_classifier=None):
+    def generate_output_corpus(self, slot_value_corpus, text_corpus, include_slot_value_corpus=False):
         max_input_length = self.model.max_input_length - 2
 
-        # drop entries that are too long
-        indices_to_drop = []
-        for idx, entry in enumerate(text_corpus):
-            if len(entry['raw_input']) > max_input_length:
-                indices_to_drop.append(idx)
-                break
-        logger.info(f"Dropping {len(indices_to_drop)} entries for having too long an input rep.")
-        for idx in reversed(indices_to_drop):
-            slot_value_corpus.pop(idx)
-            text_corpus.pop(idx)
+        # # drop entries that are too long
+        # indices_to_drop = []
+        # for idx, entry in enumerate(text_corpus):
+        #     if len(entry['raw_input']) > max_input_length:
+        #         indices_to_drop.append(idx)
+        #         break
+        # logger.info(f"Dropping {len(indices_to_drop)} entries for having too long an input rep.")
+        # for idx in reversed(indices_to_drop):
+        #     slot_value_corpus.pop(idx)
+        #     text_corpus.pop(idx)
 
         # Prepare the embeddings
         test_input, test_output = self.prep_embeddings(text_corpus, max_input_length)
@@ -167,13 +162,13 @@ class MultitaskSeq2SeqGenerator(object):
         relexed_best = []
         relexed_refs = []
         for sv_entry, best, ref in zip(slot_value_corpus, best_outputs, ref_outputs):
-            curr_best = best.replace(" ,", ",").replace(" . ", ".").replace(" ?", "?").replace(" !", "!").replace(" ;", ";").replace(" :", ":").replace(" - ", "-")
-            curr_ref = ref.replace(" ,", ",").replace(" . ", ".").replace(" ?", "?").replace(" !", "!").replace(" ;", ";").replace(" :", ":").replace(" - ", "-")
+            curr_best = best
+            curr_ref = ref
             for slot in sv_entry.raw_input.relex_dict:
                 curr_best = curr_best.replace(slot, sv_entry.raw_input.relex_dict[slot].replace("_", " "))
                 curr_ref = curr_ref.replace(slot, sv_entry.raw_input.relex_dict[slot].replace("_", " "))
-            relexed_best.append(curr_best)  # .lower())
-            relexed_refs.append(curr_ref)  # .lower())
+            relexed_best.append(enunlg.normalisation.tokenisation.TGenTokeniser.detokenise(curr_best))
+            relexed_refs.append(enunlg.normalisation.tokenisation.TGenTokeniser.detokenise(curr_ref))
         for best, ref in zip(relexed_best[:10], relexed_refs[:10]):
             logger.info(best)
             logger.info(ref)
@@ -182,44 +177,19 @@ class MultitaskSeq2SeqGenerator(object):
         output_corpus.metadata['generator_metadata'] = self.metadata
         output_corpus.annotation_layers.append('best_output_indices')
         output_corpus.annotation_layers.append('best_output')
-        output_corpus.annotation_layers.append('relexed_reference')
-        for indices, best, ref, entry in zip(outputs, relexed_best, relexed_refs, output_corpus):
-            entry['best_output_indices'] = indices
+        output_corpus.annotation_layers.append('best_output_relexed')
+        output_corpus.annotation_layers.append('ref_relexed')
+        for indices, best, best_relexed, ref_relexed, entry in zip(outputs, best_outputs, relexed_best, relexed_refs, output_corpus):
+            entry['best_output_indices'] = str([int(x) for x in indices])
             entry['best_output'] = best
-            entry['relexed_reference'] = ref
+            entry['best_output_relexed'] = best_relexed
+            entry['ref_relexed'] = ref_relexed
             # entry.annotation_layers.append('best_output')
             # entry.annotation_layers.append('relexed_reference')
-
-        # Calculate BLEU compared to targets
-        bleu = sm.BLEU()
-        # We only have one reference per output
-        bleu_score = bleu.corpus_score(relexed_best, [relexed_refs])
-        logger.info(f"Current score: {bleu_score}")
-        output_corpus.metadata['BLEU'] = str(bleu_score)
-        output_corpus.metadata['BLEU_settings'] = bleu.get_signature()
-
-        if ser_classifier is not None:
-            multi_da_mrs = ser_classifier.prepare_input(slot_value_corpus)
-            for idx in reversed(indices_to_drop):
-                multi_da_mrs.pop(idx)
-            # Estimate SER using classifier
-            test_tokens = [text.strip().split() for text in relexed_best]
-            test_text_ints = [ser_classifier.text_vocab.get_ints(text) for text in test_tokens]
-            test_mr_bitvectors = [ser_classifier.binary_mr_vocab.embed_da(mr) for mr in multi_da_mrs]
-            ser_pairs = [(torch.tensor(text_ints, dtype=torch.long),
-                          torch.tensor(mr_bitvectors, dtype=torch.float))
-                         for text_ints, mr_bitvectors in zip(test_text_ints, test_mr_bitvectors)]
-
-            logger.info(f"Test error: {ser_classifier.evaluate(ser_pairs):0.2f}")
-            output_corpus.metadata['SER'] = f"{ser_classifier.evaluate(ser_pairs):0.2f}"
-
-        if bert_score is not None:
-            (p, r, f1), bs_hash = bert_score.score(relexed_best, relexed_refs, return_hash=True, rescale_with_baseline=True, lang='en', verbose=True, device="cuda:0")
-            logger.info(f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}")
-            output_corpus.metadata['BERTScore'] = f"BERTScore: {p.mean()} / {r.mean()} / {f1.mean()}"
-            output_corpus.metadata['BERTScore_settings'] = bs_hash
-
-        return output_corpus
+        if include_slot_value_corpus:
+            return output_corpus, slot_value_corpus
+        else:
+            return output_corpus
 
 
 

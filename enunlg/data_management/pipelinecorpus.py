@@ -1,6 +1,7 @@
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any, Callable, Dict, Iterable, List, Optional, TextIO, Tuple, TypeVar
+from pathlib import Path
+from typing import Any, Dict, List, Optional, TextIO, Tuple, TypeVar, TYPE_CHECKING, Union
 
 import logging
 import random
@@ -10,6 +11,9 @@ from enunlg.meaning_representation.slot_value import SlotValueMR
 import enunlg.data_management.iocorpus
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    import os
 
 
 def string_to_python_identifier(text: str):
@@ -46,7 +50,10 @@ class PipelineItem(object):
 
     def print_layers(self):
         for layer in self.annotation_layers:
-            layer_content = " ".join(self[layer])
+            if isinstance(self[layer], str):
+                layer_content = self[layer]
+            else:
+                layer_content = " ".join(self[layer])
             print(f"{layer}|\t{layer_content}")
 
     def drop_layers(self, drop=None, keep=None) -> None:
@@ -144,7 +151,7 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
             print(f"    with {len(layer_types[layer])} types across {sum(layer_lengths[layer])} tokens.")
 
     def print_sample(self, range_start=0, range_end=10, subsample=None):
-        if random is None:
+        if subsample is None:
             for item in self[range_start:range_end]:
                 item.print_layers()
                 print("----")
@@ -153,7 +160,7 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
                 item.print_layers()
                 print("----")
         else:
-            message = "`random` must be None or an integer"
+            message = "`subsample` must be None or an integer"
             raise ValueError(message)
 
     def drop_layers(self, drop=None, keep=None):
@@ -214,13 +221,13 @@ class TextPipelineCorpus(PipelineCorpus):
             for layer in self.annotation_layers:
                 yield item[layer]
 
-    def save(self, filename: str) -> None:
-        with open(filename, 'w') as out_file:
+    def save(self, filename: Union[str, bytes, "os.PathLike"]) -> None:
+        with Path(filename).open('w') as out_file:
             self.write_to_iostream(out_file)
     
     def write_to_iostream(self, io_stream: TextIO) -> None:
         io_stream.write("# TextPipeline Corpus Save File\n")
-        io_stream.write("# Format Version 0.2\n")
+        io_stream.write("# Format Version 0.3\n")
         io_stream.write("# \n")
         io_stream.write("# Metadata:\n")
         for key in self.metadata:
@@ -245,3 +252,78 @@ class TextPipelineCorpus(PipelineCorpus):
                     layer_line = " ".join(entry[annotation_layer])
                 io_stream.write(f"{layer_line}\n")
             io_stream.write("\n")
+
+    @classmethod
+    def load(cls, filename) -> "TextPipelineCorpus":
+        with Path(filename).open('r') as input_file:
+            in_header = True
+            collect_header = []
+            annotation_layer_names = []
+            contents = []
+            curr_entry_id = ""
+            curr_entry_parts = []
+            for line in input_file:
+                if line.startswith("# "):
+                    if in_header:
+                        collect_header.append(line.strip("# \n"))
+                    else:
+                        if curr_entry_parts:
+                            item = PipelineItem({x: y for x, y in zip(annotation_layer_names, curr_entry_parts)})
+                            item.metadata['id'] = curr_entry_id
+                            contents.append(item)
+                        curr_entry_id = line.strip("# \n")
+                        curr_entry_parts = []
+                elif line.strip() == "":
+                    if in_header:
+                        in_header = False
+                        corpus_metadata, annotation_layer_names = extract_data_from_header(collect_header)
+                else:
+                    # print(line.strip())
+                    curr_entry_parts.append(line.strip())
+            retval = cls(contents)
+            retval.metadata = corpus_metadata
+            retval.metadata['loaded_from'] = str(filename)
+            return retval
+
+
+def extract_data_from_header(header):
+    in_metadata = False
+    in_anno_layers = False
+    in_a_subdict = False
+    metadata = {}
+    subdict_label = ""
+    subdict = {}
+    annotation_layers = []
+    for line in header:
+        if "TextPipeline Corpus Save File" in line:
+            pass
+        elif line.strip().startswith("Format Version"):
+            pass
+        elif line == "Metadata:":
+            in_metadata = True
+        elif line == "Annotation Layers:":
+            in_metadata = False
+            in_anno_layers = True
+        elif line == "":
+            in_metadata = False
+            in_anno_layers = False
+        else:
+            if in_metadata:
+                parts = line.split()
+                if len(parts) > 1:
+                    if in_a_subdict:
+                        subdict[parts[0].strip(":")] = " ".join(parts[1:])
+                        # TODO make this more general; right now this is okay bc we know this can only happen once
+                        metadata[subdict_label] = deepcopy(subdict)
+                        subdict = {}
+                        subdict_label = ""
+                        in_a_subdict = False
+                    else:
+                        metadata[parts[0].strip(":")] = " ".join(parts[1:])
+                elif len(parts) == 1:
+                    in_a_subdict = True
+                    subdict_label = line.strip(":")
+            elif in_anno_layers:
+                annotation_layers.append(line.strip())
+    return metadata, annotation_layers
+
