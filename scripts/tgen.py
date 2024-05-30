@@ -53,8 +53,8 @@ def train_tgen(config: omegaconf.DictConfig, shortcircuit=None) -> None:
     corpus = load_data_from_config(config.data, config.train.train_splits)
     dev_corpus = load_data_from_config(config.data, config.train.dev_splits)
 
-    corpus = preprocess_corpus_from_config(config.preprocessing, corpus)
-    dev_corpus = preprocess_corpus_from_config(config.preprocessing, dev_corpus)
+    corpus = preprocess_corpus_from_config(config.data.preprocessing, corpus)
+    dev_corpus = preprocess_corpus_from_config(config.data.preprocessing, dev_corpus)
 
     generator = enunlg.generators.tgen.TGenGenerator(corpus, config.model)
     total_parameters = enunlg.util.count_parameters(generator.model)
