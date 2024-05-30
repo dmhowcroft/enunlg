@@ -1,11 +1,13 @@
 from copy import deepcopy
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, List, Tuple
+from typing import TYPE_CHECKING, List, Tuple
 
 import json
 import logging
 
 import omegaconf
+
+from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg.data_management.cued
 import enunlg.data_management.e2e_challenge
@@ -24,7 +26,7 @@ SUPPORTED_DATASETS = {"e2e", "e2e-cleaned", "e2e-enriched", "webnlg-enriched", "
 SUPPORTED_PIPELINE_DATASETS = {"e2e-enriched", "webnlg-enriched"}
 
 
-def load_data_from_config(data_config: "omegaconf.DictConfig", splits, sem_class_delex: Optional[str] = None):
+def load_data_from_config(data_config: "omegaconf.DictConfig", splits):
     """Selects the right function to use to load the desired data and return a corpus.
 
     In an experiment's YAML file, the data config is specified under the key `data`.
@@ -63,9 +65,23 @@ def load_data_from_config(data_config: "omegaconf.DictConfig", splits, sem_class
         raise ValueError(message)
 
 
+def prep_corpus(data_config: omegaconf.DictConfig,
+                splits: List[str],
+                print_summaries=True):
+    if data_config.corpus.name not in SUPPORTED_DATASETS:
+        message = f"Unsupported dataset: {data_config.corpus.name}"
+        raise ValueError(message)
+    if data_config.corpus.name in SUPPORTED_PIPELINE_DATASETS:
+        return prep_pipeline_corpus(data_config, splits, print_summaries)
+    elif data_config.corpus.name in ('e2e', 'e2e-cleaned'):
+        return prep_e2e_corpus(data_config, splits)
+    else:
+        message = f"It should not be possible to get this error message. You tried to use {data_config.corpus.name}"
+        raise ValueError(message)
+
+
 def prep_pipeline_corpus(data_config: omegaconf.DictConfig,
                          splits: List[str],
-                         delexicalise: bool = True,
                          print_summaries: bool = True) -> "Tuple[AnyPipelineCorpus, AnyPipelineCorpus, TextPipelineCorpus]":
     pipeline_corpus = load_data_from_config(data_config, splits)
     if print_summaries:
@@ -73,13 +89,13 @@ def prep_pipeline_corpus(data_config: omegaconf.DictConfig,
 
     if data_config.corpus.name == "e2e-enriched":
         pipeline_corpus.validate_enriched_e2e()
-        if delexicalise:
+        if data_config.preprocessing.delexicalise:
             pipeline_corpus.delexicalise_by_slot_name(('name', 'near'))
         slot_value_corpus = deepcopy(pipeline_corpus)
         if data_config.input_mode == "rdf":
             enunlg.util.translate_sv_corpus_to_rdf(pipeline_corpus)
     elif data_config.corpus.name == "webnlg-enriched":
-        if delexicalise:
+        if data_config.preprocessing.delexicalise:
             sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
             sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
             pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)
@@ -109,3 +125,24 @@ def prep_pipeline_corpus(data_config: omegaconf.DictConfig,
         text_corpus.print_summary_stats()
         text_corpus.print_sample(0, 100, 10)
     return pipeline_corpus, slot_value_corpus, text_corpus
+
+
+def prep_e2e_corpus(data_config: omegaconf.DictConfig,
+                    splits: List[str]) -> enunlg.data_management.e2e_challenge.E2ECorpus:
+    corpus = load_data_from_config(data_config, splits)
+    preprocessing_config = data_config.preprocessing
+    if preprocessing_config.text.normalise == 'tgen':
+        corpus = enunlg.data_management.e2e_challenge.E2ECorpus([enunlg.data_management.e2e_challenge.E2EPair(pair.mr, TGenTokeniser.tokenise(pair.text)) for pair in corpus])
+    if preprocessing_config.text.delexicalise:
+        logger.info('Applying delexicalisation...')
+        if preprocessing_config.text.delexicalise.mode == 'split_on_caps':
+            logger.info('...splitting on capitals in values')
+            logger.info(f"...delexicalising: {preprocessing_config.text.delexicalise.slots}")
+            corpus = enunlg.data_management.e2e_challenge.E2ECorpus([enunlg.data_management.e2e_challenge.delexicalise_exact_matches(pair, fields_to_delex=preprocessing_config.text.delexicalise.slots)
+                                                                     for pair in corpus])
+        else:
+            raise ValueError("We can only handle the mode where we also check splitting on caps for values right now.")
+    if preprocessing_config.mr.ignore_order:
+        logger.info("Sorting slot-value pairs in the MR to ignore order...")
+        corpus.sort_mr_elements()
+    return corpus

@@ -7,6 +7,8 @@ pytorch:
 data:
   input_mode: e2e
   drop_intermediate_layers: False
+  preprocessing:
+    delexicalise: True
 model:
   name: multitask_seq2seq+attn
   max_input_length: 45
