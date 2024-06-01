@@ -181,7 +181,7 @@ class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
                     if orig_tag not in self[layer_name]:
                         can_delex = False
                 else:
-                    if entity.replace("_", " ") not in self[layer_name]:
+                    if entity.replace("_", " ") not in self[layer_name] and regex.match(entity.replace("_", " "), self[layer_name], regex.IGNORECASE) is None:
                         can_delex = False
             else:
                 raise ValueError(f"Unexpected type for this layer: {type(layer)}")
