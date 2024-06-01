@@ -95,7 +95,7 @@ def prep_pipeline_corpus(data_config: omegaconf.DictConfig,
         if data_config.input_mode == "rdf":
             enunlg.util.translate_sv_corpus_to_rdf(pipeline_corpus)
     elif data_config.corpus.name == "webnlg-enriched":
-        if data_config.preprocessing.delexicalise:
+        if data_config.preprocessing.delexicalise == 'with-dbpedia-sem-classes':
             sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
             sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
             pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)

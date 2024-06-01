@@ -4,4 +4,4 @@ defaults:
 
 input_mode: rdf
 preprocessing:
-  delexicalise: with-dbpedia-sem-classes
+  delexicalise: with-agent-and-pred
