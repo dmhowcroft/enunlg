@@ -62,6 +62,13 @@ class RDFTripleList(list):
     def can_delex(self, entity: str) -> bool:
         return any([triple.can_delex(entity) for triple in self])
 
+    def find_pred_for_object(self, entity: str) -> Optional[str]:
+        for triple in self:
+            if triple.object == entity:
+                return triple.predicate
+        # print(entity)
+        # print(self)
+
 
 class WebNLGLex(object):
     def __init__(self, text=None, lex_id=None, lang=None, comment=None):

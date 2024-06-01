@@ -15,7 +15,6 @@ import xsdata.formats.dataclass.parsers as xsparsers
 
 from enunlg.data_management.webnlg import RDFTriple, RDFTripleList
 from enunlg.formats.xml.enriched_webnlg import EnrichedWebNLGBenchmark, EnrichedWebNLGEntry
-from enunlg.normalisation.tokenisation import TGenTokeniser
 
 import enunlg.data_management.pipelinecorpus
 
@@ -23,8 +22,7 @@ logger = logging.getLogger(__name__)
 
 # TODO add hydra configuration for enriched e2e stuff
 ENRICHED_WEBNLG_CONFIG = omegaconf.DictConfig({'ENRICHED_WEBNLG_DIR':
-                                                   os.path.join(os.path.dirname(__file__),
-                                                                '../../datasets/processed/webnlg/data/v1.6/en/')})
+                                               Path(__file__).parent / '../../datasets/processed/webnlg/data/v1.6/en/'})
 
 WEBNLG_SPLIT_DIRS = ('train', 'dev', 'test')
 
@@ -105,6 +103,7 @@ class EnrichedWebNLGReference(object):
         attr_string = ", ".join([f"{key}={self.__getattribute__(key)}" for key in ("entity", "seq_loc", "orig_delex_tag", "ref_type", "form")])
         return f"{self.__class__.__name__}({attr_string})"
 
+
 class EnrichedWebNLGReferences(object):
     def __init__(self, ref_list):
         self.sequence = ref_list
@@ -128,33 +127,40 @@ class EnrichedWebNLGItem(enunlg.data_management.pipelinecorpus.PipelineItem):
         super().__init__(annotation_layers)
         self.references = EnrichedWebNLGReferences([])
         self._delexicalization_tracking = []
-        self._sem_class_counts = defaultdict(int)
+        self._label_counts = defaultdict(int)
 
     def __repr__(self):
         attr_string = ", ".join([f"{layer}={str(self[layer])}" for layer in self.annotation_layers])
         return f"{self.__class__.__name__}({attr_string}, references={self.references})"
 
-    def delex_reference(self, entity, sem_class):
+    def delex_reference(self, entity, label, use_counts: bool = True):
         if self.can_delex(entity):
             orig_tag = self.references.entity_orig_tag_mapping[entity]
-            sem_class_string = f"__{sem_class}-{self._sem_class_counts[sem_class]}__"
-            self._delexicalization_tracking.append((entity, sem_class, orig_tag))
+            if use_counts:
+                label_string = f"__{label}-{self._label_counts[label]}__"
+            else:
+                label_string = f"__{label}__"
+            self._delexicalization_tracking.append((entity, label, orig_tag))
             for layer_name in self.annotation_layers:
                 layer = self[layer_name]
                 if isinstance(layer, RDFTripleList):
-                    layer.delex_reference(entity, sem_class_string)
+                    layer.delex_reference(entity, label_string)
                 elif isinstance(layer, tuple):
                     if all(isinstance(element, RDFTripleList) for element in layer):
                         for element in layer:
-                            element.delex_reference(entity, sem_class_string)
+                            element.delex_reference(entity, label_string)
                 elif isinstance(layer, str):
                     if layer_name == 'lexicalisation':
-                        self[layer_name] = layer.replace(orig_tag, sem_class_string)
+                        self[layer_name] = layer.replace(orig_tag, label_string)
                     else:
-                        self[layer_name] = layer.replace(entity, sem_class_string).replace(entity.replace("_", " "), sem_class_string)
+                        if len(entity.split()) > 2:
+                            self[layer_name] = regex.sub(entity, label_string, self[layer_name], flags=regex.IGNORECASE)
+                        else:
+                            self[layer_name] = layer.replace(entity, label_string).replace(entity.replace("_", " "), label_string)
                 else:
                     raise ValueError(f"Unexpected type for this layer: {type(layer)}")
-            self._sem_class_counts[sem_class] += 1
+            if use_counts:
+                self._label_counts[label] += 1
         else:
             print(f"could not delex {entity}")
 
@@ -275,6 +281,67 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                 undelexicalisable_entries.append(idx)
         logger.info(
             f"Percentage of entities for which we have an entry in the sem_class_dict: {len(present) / (len(present) + len(absent))}")
+        logger.info(f"We had to discard {len(undelexicalisable_entries)} entries as undelexicalisable.")
+        for idx in reversed(undelexicalisable_entries):
+            self.pop(idx)
+
+    def delexicalise_with_rdf_roles(self):
+        undelexicalisable_entries = []
+        for idx, entry in enumerate(self):
+            logger.debug("-=-=-=-=-=-=-=-==-")
+            logger.debug(f"Attempting to delex entry #{idx}")
+            logger.debug(entry)
+            orig_entry = deepcopy(entry)
+            for reference in entry.references.sequence:
+                entity = reference.entity
+                orig_tag = entry.references.entity_orig_tag_mapping[entity]
+                if entry.can_delex(entity):
+                    entry.delex_reference(entity, orig_tag, use_counts=False)
+                else:
+                    entry['lexicalisation'] = entry['lexicalisation'].replace(reference.orig_delex_tag,
+                                                                              str(reference.form), 1)
+            if repr(orig_entry) == repr(entry):
+                undelexicalisable_entries.append(idx)
+            # print(orig_entry)
+            # print(entry)
+            # print("====")
+        logger.info(f"We had to discard {len(undelexicalisable_entries)} entries as undelexicalisable.")
+        for idx in reversed(undelexicalisable_entries):
+            self.pop(idx)
+
+    def delexicalise_with_agent_and_pred(self):
+        undelexicalisable_entries = []
+        for idx, entry in enumerate(self):
+            logger.debug("-=-=-=-=-=-=-=-==-")
+            logger.debug(f"Attempting to delex entry #{idx}")
+            logger.debug(entry)
+            orig_entry = deepcopy(entry)
+            completed_patients = set()
+            for reference in entry.references.sequence:
+                entity = reference.entity
+                orig_tag = entry.references.entity_orig_tag_mapping[entity]
+                if entity:
+                    if orig_tag.startswith("PATIENT"):
+                        if orig_tag not in completed_patients:
+                            try:
+                                label = entry.raw_input.find_pred_for_object(entity).replace(" ", "").upper()
+                                completed_patients.add(orig_tag)
+                            except AttributeError:
+                                print('no match!')
+                                continue
+                        else:
+                            entry['lexicalisation'] = entry['lexicalisation'].replace(reference.orig_delex_tag,
+                                                                                      str(reference.form), 1)
+                            continue
+                    else:
+                        label = orig_tag
+                    if entry.can_delex(entity):
+                        entry.delex_reference(entity, label, use_counts=False)
+                    else:
+                        entry['lexicalisation'] = entry['lexicalisation'].replace(reference.orig_delex_tag,
+                                                                                  str(reference.form), 1)
+            if repr(orig_entry) == repr(entry):
+                undelexicalisable_entries.append(idx)
         logger.info(f"We had to discard {len(undelexicalisable_entries)} entries as undelexicalisable.")
         for idx in reversed(undelexicalisable_entries):
             self.pop(idx)
@@ -411,11 +478,6 @@ def load_enriched_webnlg(enriched_webnlg_config: Optional[omegaconf.DictConfig] 
                        'directory': data_directory,
                        'raw': True}
     logger.info(f"Corpus size: {len(corpus)}")
-
-    # tokenize texts
-    for entry in corpus:
-        for target in entry.lex:
-            target.text = TGenTokeniser.tokenise(target.text)
 
     # Specify the type again since we're changing the expected type of the variable and mypy doesn't like that
     corpus: EnrichedWebNLGCorpus = EnrichedWebNLGCorpus.from_raw_corpus(corpus)

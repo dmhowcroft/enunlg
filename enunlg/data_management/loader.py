@@ -7,7 +7,7 @@ import logging
 
 import omegaconf
 
-from enunlg.normalisation.tokenisation import TGenTokeniser
+from enunlg.normalisation.tokenisation import INLG2024Tokenizer
 
 import enunlg.data_management.cued
 import enunlg.data_management.e2e_challenge
@@ -99,6 +99,10 @@ def prep_pipeline_corpus(data_config: omegaconf.DictConfig,
             sem_class_dict = json.load(Path("datasets/processed/enriched-webnlg.dbo-delex.70-percent-coverage.json").open('r'))
             sem_class_lower = {key.lower(): sem_class_dict[key] for key in sem_class_dict}
             pipeline_corpus.delexicalise_with_sem_classes(sem_class_lower)
+        elif data_config.preprocessing.delexicalise == 'with-rdf-roles':
+            pipeline_corpus.delexicalise_with_rdf_roles()
+        elif data_config.preprocessing.delexicalise == 'with-agent-and-pred':
+            pipeline_corpus.delexicalise_with_agent_and_pred()
         slot_value_corpus = deepcopy(pipeline_corpus)
         # For some reason metadata doesn't get copied???
         slot_value_corpus.metadata = pipeline_corpus.metadata
@@ -108,6 +112,12 @@ def prep_pipeline_corpus(data_config: omegaconf.DictConfig,
             pipeline_corpus = slot_value_corpus
     else:
         raise ValueError(f"Prepare pipeline corpus can only work with {SUPPORTED_PIPELINE_DATASETS}")
+
+    # tokenize texts
+    for entry in pipeline_corpus:
+        entry['raw_output'] = INLG2024Tokenizer.tokenise(entry['raw_output'])
+    for entry in slot_value_corpus:
+        entry['raw_output'] = INLG2024Tokenizer.tokenise(entry['raw_output'])
 
     # Convert annotations from datastructures to 'text' -- i.e. linear sequences of a specific type.
     if data_config.input_mode == "rdf":
