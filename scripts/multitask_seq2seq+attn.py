@@ -92,12 +92,14 @@ def train_multitask_seq2seq_attn(config: omegaconf.DictConfig, shortcircuit=None
     ser_classifier = FullBinaryMRClassifier.load(config.test.classifier_file)
     logger.info("===============================================")
     logger.info("Calculating performance on the training data...")
-    train_corpus_eval, _ = generator.generate_output_corpus(slot_value_corpus, text_corpus, ser_classifier)
+    train_corpus_eval, ser_corpus = generator.generate_output_corpus(slot_value_corpus, text_corpus, ser_classifier)
+    train_corpus_eval = evaluate(train_corpus_eval, ser_corpus, ser_classifier)
     train_corpus_eval.save(Path(config.output_dir) / 'trainset-eval.corpus')
     
     logger.info("===============================================")
     logger.info("Calculating performance on the validation data...")
-    dev_corpus_eval, _ = generator.generate_output_corpus(dev_slot_value_corpus, dev_text_corpus, ser_classifier)
+    dev_corpus_eval, dev_ser_corpus = generator.generate_output_corpus(dev_slot_value_corpus, dev_text_corpus, ser_classifier)
+    dev_corpus_eval = evaluate(dev_corpus_eval, dev_ser_corpus, ser_classifier)
     dev_corpus_eval.save(Path(config.output_dir) / 'devset-eval.corpus')
 
 
