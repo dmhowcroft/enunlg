@@ -65,7 +65,7 @@ class E2ECorpus(iocorpus.IOCorpus):
         text_types = set()
         for item in self:
             mr_lengths.append(len(item.mr))
-            mr_types.add(item.mr.as_frozen())
+            mr_types.add(item.mr)
             text_lengths.append(len(item.text.split()))
             text_types.add(tuple(item.text.split()))
 
@@ -77,7 +77,7 @@ class E2ECorpus(iocorpus.IOCorpus):
         print(f"    with {len(text_types)} types across {len(text_lengths)} tokens.")
 
 
-def parse_mr(e2e_mr: str) -> box.Box:
+def parse_mr(e2e_mr: str) -> SlotValueMR:
     facts = {}
     loop_check = 0
     while e2e_mr:
