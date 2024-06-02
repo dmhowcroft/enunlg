@@ -82,9 +82,14 @@ class PipelineCorpus(enunlg.data_management.iocorpus.IOCorpus):
         if seq is None:
             self.annotation_layers = []
         else:
-            layer_names = seq[0].annotation_layers
-            assert all(item.annotation_layers == layer_names for item in seq), f"Expected all items in seq to have the layers: {layer_names}"
-            self.annotation_layers = layer_names
+            tmp = set(tuple(entry.annotation_layers) for entry in seq)
+            # print(tmp)
+            # for entry in seq:
+            #     if len(entry.annotation_layers) == 1:
+            #         print(entry)
+            err_msg = f"Expected all items in seq to have the same layers, but found {tmp}"
+            assert len(tmp) == 1, err_msg
+            self.annotation_layers = list(tmp.pop())
         super(PipelineCorpus, self).__init__(seq)
         if metadata is None:
             self.metadata = {'name': None,
@@ -263,7 +268,7 @@ class TextPipelineCorpus(PipelineCorpus):
             curr_entry_id = ""
             curr_entry_parts = []
             for line in input_file:
-                if line.startswith("# "):
+                if line.startswith("#"):
                     if in_header:
                         collect_header.append(line.strip("# \n"))
                     else:
@@ -277,10 +282,15 @@ class TextPipelineCorpus(PipelineCorpus):
                     if in_header:
                         in_header = False
                         corpus_metadata, annotation_layer_names = extract_data_from_header(collect_header)
+                        # print(annotation_layer_names)
                 else:
                     # print(line.strip())
                     curr_entry_parts.append(line.strip())
-            retval = cls(contents)
+            try:
+                retval = cls(contents)
+            except AssertionError:
+                raise
+
             retval.metadata = corpus_metadata
             retval.metadata['loaded_from'] = str(filename)
             return retval
