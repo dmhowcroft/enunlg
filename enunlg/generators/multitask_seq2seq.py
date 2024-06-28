@@ -166,8 +166,8 @@ class MultitaskSeq2SeqGenerator(object):
             for slot in sv_entry.raw_input.relex_dict:
                 curr_best = curr_best.replace(slot, sv_entry.raw_input.relex_dict[slot].replace("_", " "))
                 curr_ref = curr_ref.replace(slot, sv_entry.raw_input.relex_dict[slot].replace("_", " "))
-            relexed_best.append(enunlg.normalisation.tokenisation.TGenTokeniser.detokenise(curr_best))
-            relexed_refs.append(enunlg.normalisation.tokenisation.TGenTokeniser.detokenise(curr_ref))
+            relexed_best.append(enunlg.normalisation.tokenisation.INLG2024Tokenizer.detokenise(curr_best))
+            relexed_refs.append(enunlg.normalisation.tokenisation.INLG2024Tokenizer.detokenise(curr_ref))
         for best, ref in zip(relexed_best[:10], relexed_refs[:10]):
             logger.info(best)
             logger.info(ref)
