@@ -330,7 +330,7 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                                 print('no match!')
                                 continue
                         else:
-                            entry['lexicalisation'] = entry['lexicalisation'].replace(reference.orig_delex_tag,
+                            entry['lexicalisation'] = entry['lexicalisation'].replace(orig_tag,
                                                                                       str(reference.form), 1)
                             continue
                     else:
@@ -338,7 +338,7 @@ class EnrichedWebNLGCorpus(enunlg.data_management.pipelinecorpus.PipelineCorpus)
                     if entry.can_delex(entity):
                         entry.delex_reference(entity, label, use_counts=False)
                     else:
-                        entry['lexicalisation'] = entry['lexicalisation'].replace(reference.orig_delex_tag,
+                        entry['lexicalisation'] = entry['lexicalisation'].replace(orig_tag,
                                                                                   str(reference.form), 1)
             if repr(orig_entry) == repr(entry):
                 undelexicalisable_entries.append(idx)
