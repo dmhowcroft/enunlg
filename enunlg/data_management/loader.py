@@ -7,7 +7,7 @@ import logging
 
 import omegaconf
 
-from enunlg.normalisation.tokenisation import INLG2024Tokenizer
+from enunlg.normalisation.tokenisation import INLG2024Tokenizer, TGenTokeniser
 
 import enunlg.data_management.cued
 import enunlg.data_management.e2e_challenge
